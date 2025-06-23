@@ -4,20 +4,96 @@
 /node_modules
 /.pnp
 .pnp.js
+node_modules/
 
 # testing
 /coverage
+*.lcov
+.nyc_output
 
 # production
 /build
+/dist
+dist/
+build/
+*.tgz
+*.tar.gz
 
-# misc
-.DS_Store
+# environment variables
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+logs
+*.log
+
+# runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# caches
+.npm
+.eslintcache
+.stylelintcache
+.cache
+.parcel-cache
+*.tsbuildinfo
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific directories
+archive/
+dist/
+
+# Claude AI files
+CLAUDE.md
+claude.md
+.claude/
+*.claude
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+*.bak
+*.backup
+
+# Optional files
+.yarn-integrity
+.tern-port
+
+# React specific
+.eslintcache
+
+# Next.js (if ever used)
+.next
+
+# Storybook
+storybook-static
+
+# Local history
+.history/
