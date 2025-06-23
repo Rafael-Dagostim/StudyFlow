@@ -1,7 +1,7 @@
 // src/pages/Home.tsx
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // useLocation pode ser removido se não for mais usado
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -25,6 +25,7 @@ import {
 import { styled } from '@mui/material/styles';
 
 import { Project, User } from '../types/types'; // Importar Project e User do types.ts
+import { projectsService } from '../services/api/projects.service';
 
 const ProjectCard = styled(Card)(({ theme }) => ({
   height: '100%',
@@ -54,29 +55,36 @@ export const Home: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedLoggedInUser = localStorage.getItem('loggedInUser');
-    if (storedLoggedInUser) {
-      try {
-        const user: User = JSON.parse(storedLoggedInUser);
-        setLoggedInUser(user);
+    const fetchProjects = async () => {
+      const storedLoggedInUser = localStorage.getItem('loggedInUser');
+      if (storedLoggedInUser) {
+        try {
+          const user: User = JSON.parse(storedLoggedInUser);
+          setLoggedInUser(user);
 
-        const storedProjects = localStorage.getItem('projects');
-        if (storedProjects) {
-          const allProjects: Project[] = JSON.parse(storedProjects);
-          // --- FILTRAR PROJETOS PELO ID DO USUÁRIO LOGADO ---
-          const filteredProjects = allProjects.filter(p => p.authorId === user.id);
-          setProjects(filteredProjects); // Define os projetos do usuário logado
-        } else {
-          setProjects([]); // Nenhum projeto encontrado
+          // Fetch projects from API
+          const response = await projectsService.getAll();
+          const userProjects = response.data.map((project: any) => ({
+            ...project,
+            authorId: project.professorId, // Map professorId to authorId for compatibility
+            author: user.name || `${user.firstName} ${user.lastName}`,
+            status: 'Rascunho' as const, // Default status
+            summary: '', // Default summary
+            avatarColor: '#2196f3', // Default color
+            updatedAt: project.createdAt,
+          }));
+          setProjects(userProjects);
+        } catch (e) {
+          console.error("Erro ao buscar projetos:", e);
+          setProjects([]); // Set empty array on error
         }
-      } catch (e) {
-        console.error("Erro ao parsear loggedInUser ou projetos no Home:", e);
-        navigate('/login'); // Redireciona se os dados estiverem corrompidos
+      } else {
+        navigate('/login'); // Redireciona para o login se não houver usuário logado
       }
-    } else {
-      navigate('/login'); // Redireciona para o login se não houver usuário logado
-    }
-    setLoading(false); // Conclui o carregamento, independentemente do sucesso
+      setLoading(false);
+    };
+
+    fetchProjects();
   }, [navigate]);
 
   const getStatusColor = (status: string) => {
@@ -97,25 +105,21 @@ export const Home: React.FC = () => {
     setOpenDeleteDialog(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (projectToDelete) {
-      // --- Lógica de exclusão que persiste no localStorage ---
-      const stored = localStorage.getItem('projects');
-      const allProjects: Project[] = stored ? JSON.parse(stored) : [];
-      
-      // Filtra TODOS os projetos para remover o que pertence ao usuário logado
-      // E tem o ID correto (para não apagar projeto de outra pessoa)
-      const updatedAllProjects = allProjects.filter((p) => p.id !== projectToDelete || p.authorId !== loggedInUser?.id);
-      
-      // Atualiza o localStorage com a lista completa de projetos
-      localStorage.setItem('projects', JSON.stringify(updatedAllProjects));
-      
-      // Atualiza o estado local 'projects' que é filtrado para o usuário atual
-      setProjects(updatedAllProjects.filter(p => p.authorId === loggedInUser?.id));
-      // --- Fim da lógica de exclusão ---
-
-      setOpenDeleteDialog(false);
-      setProjectToDelete(null);
+      try {
+        // Delete project via API
+        await projectsService.delete(projectToDelete);
+        
+        // Update local state by removing the deleted project
+        setProjects(prevProjects => prevProjects.filter(p => p.id !== projectToDelete));
+        
+        setOpenDeleteDialog(false);
+        setProjectToDelete(null);
+      } catch (error) {
+        console.error("Erro ao deletar projeto:", error);
+        alert("Erro ao deletar o projeto. Por favor, tente novamente.");
+      }
     }
   };
 

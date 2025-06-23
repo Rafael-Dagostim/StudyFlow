@@ -19,7 +19,8 @@ import {
 
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 
-import { Project, User } from '../types/types'; // <-- CRUCIAL: Importar Project e User do types.ts
+import { Project, User, IUpdateProjectRequest } from '../types/types'; // <-- CRUCIAL: Importar Project e User do types.ts
+import { projectsService } from '../services/api/projects.service';
 
 export const EditProject: React.FC = () => {
   const { id } = useParams();
@@ -28,11 +29,15 @@ export const EditProject: React.FC = () => {
   // Estado para os dados do projeto
   const [projectData, setProjectData] = useState<Project>({
     id: '',
+    name: '', // Add required name field
     subject: '',
+    description: '', // Add required description field
+    professorId: '', // Add required professorId field
     status: 'Rascunho',
     summary: '',
     authorId: '', // <-- Inicializa o authorId
     author: '',
+    createdAt: '', // Add required createdAt field
     updatedAt: '',
     avatarColor: '',
     attachedFileNames: [], // <-- Inicializa como array vazio
@@ -60,37 +65,44 @@ export const EditProject: React.FC = () => {
     }
   }, [navigate]); // navigate como dependência
 
-  // --- Carrega os dados do projeto (e filtra por usuário logado) ---
+  // --- Carrega os dados do projeto via API ---
   useEffect(() => {
-    if (!loggedInUser) return; // Espera o loggedInUser ser carregado antes de buscar o projeto
+    if (!loggedInUser || !id) return; // Espera o loggedInUser ser carregado antes de buscar o projeto
 
-    const storedProjects = localStorage.getItem('projects');
-    if (storedProjects) {
-      const allProjects: Project[] = JSON.parse(storedProjects);
-      // Filtrar projetos por ID do usuário logado E o ID do projeto da URL
-      const projectToEdit = allProjects.find(
-        p => p.id === id && p.authorId === loggedInUser.id // <-- Filtro por ID do usuário e ID do projeto
-      );
-
-      if (projectToEdit) {
-        setProjectData(projectToEdit);
-        // Lida com attachedFileNames, que agora é um array
-        if (projectToEdit.attachedFileNames && projectToEdit.attachedFileNames.length > 0) {
-          // Para exibição, usamos o nome do primeiro arquivo existente para o preview.
-          // Note: Isso não recria o objeto File real, apenas seu nome.
-          setAttachedFile(new File([], projectToEdit.attachedFileNames[0]));
+    const fetchProject = async () => {
+      try {
+        const response = await projectsService.getById(id);
+        const project = response.data;
+        
+        // Map API data to local Project format
+        const mappedProject: Project = {
+          ...project,
+          authorId: project.professorId,
+          author: loggedInUser.name || `${loggedInUser.firstName} ${loggedInUser.lastName}`,
+          status: projectData.status || 'Rascunho', // Keep current status
+          summary: projectData.summary || '', // Keep current summary
+          avatarColor: projectData.avatarColor || '#2196f3',
+          updatedAt: project.createdAt,
+          attachedFileNames: projectData.attachedFileNames || [],
+        };
+        
+        setProjectData(mappedProject);
+        
+        // Handle file attachments display
+        if (mappedProject.attachedFileNames && mappedProject.attachedFileNames.length > 0) {
+          setAttachedFile(new File([], mappedProject.attachedFileNames[0]));
         } else {
           setAttachedFile(null);
         }
-      } else {
-        // Se o projeto não for encontrado OU não pertencer ao usuário logado
+      } catch (error) {
+        console.error("Erro ao buscar projeto:", error);
         alert("Projeto não encontrado ou você não tem permissão para editá-lo.");
-        navigate('/home'); // Redirecionar
+        navigate('/home');
       }
-    } else {
-      navigate('/home'); // Redirecionar se não houver projetos salvos
-    }
-  }, [id, navigate, loggedInUser]); // loggedInUser como dependência
+    };
+
+    fetchProject();
+  }, [id, navigate, loggedInUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,48 +129,40 @@ export const EditProject: React.FC = () => {
   };
   // --- Fim do handleFileChange ---
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // --- Verificar se o usuário está logado antes de salvar ---
-    if (!loggedInUser) {
+    if (!loggedInUser || !id) {
         alert("Você precisa estar logado para salvar as alterações.");
         navigate('/'); // <-- Redireciona para /
         return;
     }
 
-    const storedProjects = localStorage.getItem('projects');
-    const allProjects: Project[] = storedProjects ? JSON.parse(storedProjects) : []; // Todos os projetos
+    try {
+      // Prepare update data for API
+      const updateData: IUpdateProjectRequest = {
+        name: projectData.subject,
+        subject: projectData.subject,
+        description: projectData.description,
+      };
 
-    // Validação: Checar se o nome do projeto já existe em OUTROS projetos DO MESMO USUÁRIO
-    const isDuplicate = allProjects.some(
-      project =>
-        project.id !== id && // Ignora o próprio projeto sendo editado
-        project.authorId === loggedInUser.id && // <-- Verifica APENAS projetos do usuário logado
-        project.subject.toLowerCase().trim() === projectData.subject.toLowerCase().trim()
-    );
-
-    if (isDuplicate) {
-      alert('Você já tem outro projeto com este nome. Por favor, escolha outro nome.');
-      return;
+      // Update project via API
+      await projectsService.update(id, updateData);
+      
+      // TODO: Handle file uploads separately if needed
+      
+      navigate('/home');
+    } catch (error: any) {
+      console.error("Erro ao atualizar projeto:", error);
+      
+      // Check if it's a duplicate name error
+      if (error.response?.status === 400 && error.response?.data?.message?.includes("already exists")) {
+        alert('Você já tem outro projeto com este nome. Por favor, escolha outro nome.');
+      } else {
+        alert("Erro ao salvar as alterações. Por favor, tente novamente.");
+      }
     }
-
-    // --- Atualizar o projeto no array de TODOS os projetos ---
-    const updatedProjects = allProjects.map(project =>
-      // Condição de atualização: o ID do projeto bate E o authorId do projeto bate com o usuário logado
-      project.id === id && project.authorId === loggedInUser.id
-        ? {
-            ...projectData, // Usa os dados do estado (já atualizados pelo input)
-            updatedAt: new Date().toLocaleString(),
-            attachedFileNames: projectData.attachedFileNames || [], // Garante que é um array, usa o que está no estado
-            authorId: loggedInUser.id, // Garante que o authorId permaneça o do usuário logado
-            author: `${loggedInUser.firstName} ${loggedInUser.lastName}`, // Garante que o nome do autor esteja atualizado
-          }
-        : project // Mantém o projeto inalterado se não for o que estamos editando ou não pertencer ao usuário
-    );
-    localStorage.setItem('projects', JSON.stringify(updatedProjects));
-
-    navigate('/home');
   };
 
   // --- Exibir estado de carregamento se o usuário ou projeto não carregou ---
