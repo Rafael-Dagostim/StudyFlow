@@ -16,6 +16,7 @@ import SendIcon from '@mui/icons-material/Send';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // Ícone de seta para trás
 import { Project, User } from '../types/types'; // Importar Project e User do types.ts
+import { projectsService } from '../services/api/projects.service';
 
 // Basic styled components for chat layout
 const ChatContainer = styled(Container)(({ theme }) => ({
@@ -90,51 +91,64 @@ const ChatPage: React.FC = () => {
   const [newMessage, setNewMessage] = useState(''); // Estado para o texto da nova mensagem
   const [attachedFile, setAttachedFile] = useState<File | null>(null); // Estado para o arquivo anexado
 
-  // --- useEffect para carregar o projeto e o histórico de chat ---
+  // --- useEffect para carregar o projeto usando API ---
   useEffect(() => {
-    const storedProjects = localStorage.getItem('projects');
-    const storedLoggedInUser = localStorage.getItem('loggedInUser');
-    const storedChatHistories = localStorage.getItem('chatHistories'); // Carrega o mapa de históricos de chat
+    const fetchProjectData = async () => {
+      const storedLoggedInUser = localStorage.getItem('loggedInUser');
+      const storedChatHistories = localStorage.getItem('chatHistories'); // Carrega o mapa de históricos de chat
 
-    if (!storedLoggedInUser) {
-      navigate('/login'); // Redireciona para login se não estiver logado
-      return;
-    }
-    const loggedInUser: User = JSON.parse(storedLoggedInUser);
-
-    if (storedProjects) {
-      const allProjects: Project[] = JSON.parse(storedProjects);
-      // Encontra o projeto pelo ID e verifica se pertence ao usuário logado
-      const foundProject = allProjects.find(
-        (p) => p.id === id && p.authorId === loggedInUser.id
-      );
-
-      if (foundProject) {
-        setProject(foundProject);
-
-        // Carrega as mensagens para este projeto específico
-        if (storedChatHistories) {
-          try {
-            const chatHistoriesMap: ChatHistoriesMap = JSON.parse(storedChatHistories);
-            if (chatHistoriesMap[foundProject.id]) {
-              setMessages(chatHistoriesMap[foundProject.id]);
-            } else {
-              setMessages([]); // Nenhum histórico para este projeto
-            }
-          } catch (e) {
-            console.error('Erro ao parsear histórico de chat do localStorage:', e);
-            setMessages([]);
-          }
-        } else {
-          setMessages([]); // Nenhum mapa de históricos de chat encontrado
-        }
-      } else {
-        alert('Projeto não encontrado ou você não tem permissão para acessá-lo.');
-        navigate('/home'); // Redireciona se o projeto não for encontrado ou não pertencer ao usuário
+      if (!storedLoggedInUser) {
+        navigate('/login'); // Redireciona para login se não estiver logado
+        return;
       }
-    } else {
-      navigate('/home'); // Redireciona se não houver projetos no localStorage
-    }
+
+      try {
+        const loggedInUser: User = JSON.parse(storedLoggedInUser);
+
+        if (id) {
+          // Fetch project from API
+          const response = await projectsService.getById(id);
+          const apiProject = response.data;
+          
+          // Map API project to local Project format
+          const mappedProject: Project = {
+            ...apiProject,
+            authorId: apiProject.professorId,
+            author: loggedInUser.name || `${loggedInUser.firstName} ${loggedInUser.lastName}`,
+            status: 'Rascunho' as const,
+            summary: '',
+            avatarColor: '#2196f3',
+            updatedAt: apiProject.createdAt,
+            attachedFileNames: [],
+          };
+          
+          setProject(mappedProject);
+
+          // Carrega as mensagens para este projeto específico
+          if (storedChatHistories) {
+            try {
+              const chatHistoriesMap: ChatHistoriesMap = JSON.parse(storedChatHistories);
+              if (chatHistoriesMap[mappedProject.id]) {
+                setMessages(chatHistoriesMap[mappedProject.id]);
+              } else {
+                setMessages([]); // Nenhum histórico para este projeto
+              }
+            } catch (e) {
+              console.error('Erro ao parsear histórico de chat do localStorage:', e);
+              setMessages([]);
+            }
+          } else {
+            setMessages([]); // Nenhum mapa de históricos de chat encontrado
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao carregar projeto:', e);
+        alert('Projeto não encontrado ou você não tem permissão para acessá-lo.');
+        navigate('/home'); // Redireciona se o projeto não for encontrado
+      }
+    };
+
+    fetchProjectData();
   }, [id, navigate]); // Dependências: ID do projeto e função de navegação
 
   // --- useEffect para salvar mensagens no localStorage ---
