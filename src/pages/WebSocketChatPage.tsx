@@ -241,7 +241,7 @@ const WebSocketChatPage: React.FC = () => {
         }}>
           <CircularProgress sx={{ mb: 2 }} />
           <Typography variant="h6" component="h1" gutterBottom>
-            {loading ? 'Carregando projeto...' : 'Conectando ao WebSocket...'}
+            {loading ? 'Carregando projeto...' : 'Conectando ao chat...'}
           </Typography>
         </Box>
       </Container>
@@ -273,7 +273,7 @@ const WebSocketChatPage: React.FC = () => {
     if (connectionError) {
       return {
         color: 'error' as const,
-        text: `Connection Error: ${connectionError}`,
+        text: `Erro de Conexão: ${connectionError}`,
         icon: <DisconnectedIcon />
       };
     }
@@ -304,7 +304,7 @@ const WebSocketChatPage: React.FC = () => {
     
     return {
       color: 'success' as const,
-      text: 'Connected - Ready for real-time chat',
+      text: 'Conectado - Pronto para conversar',
       icon: <ConnectedIcon />
     };
   };
@@ -335,10 +335,10 @@ const WebSocketChatPage: React.FC = () => {
         
         <Box sx={{ flexGrow: 1, textAlign: 'center', mr: 4 }}>
           <Typography variant="h5" component="h1">
-            Chat com IA sobre: **{project.subject}**
+            Chat com IA sobre: {project.subject}
           </Typography>
           <Typography variant="subtitle2" color="text.secondary">
-            WebSocket Streaming Chat
+            Chat em Tempo Real
           </Typography>
         </Box>
 
@@ -408,7 +408,7 @@ const WebSocketChatPage: React.FC = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {isConnected 
-                  ? 'Send a message and watch the AI respond in real-time with streaming.'
+                  ? 'Envie uma mensagem e veja a IA responder em tempo real.'
                   : 'Please wait while we establish the connection.'}
               </Typography>
             </Box>
@@ -441,7 +441,7 @@ const WebSocketChatPage: React.FC = () => {
                 {msg.role === 'ASSISTANT' && msg.metadata?.sources && msg.metadata.sources.length > 0 && (
                   <SourcesPanel>
                     <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>
-                      Sources consulted:
+                      Fontes consultadas:
                     </Typography>
                     {/* Remove duplicates by filename */}
                     {msg.metadata.sources
@@ -485,7 +485,7 @@ const WebSocketChatPage: React.FC = () => {
           {isStreaming && sources.length > 0 && (
             <SourcesPanel>
               <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>
-                Consulting sources:
+                Consultando fontes:
               </Typography>
               {/* Remove duplicates by filename */}
               {sources
@@ -514,7 +514,7 @@ const WebSocketChatPage: React.FC = () => {
             multiline
             maxRows={4}
             variant="outlined"
-            placeholder={isConnected ? "Type your message..." : "Connecting to WebSocket..."}
+            placeholder={isConnected ? "Digite sua mensagem..." : "Conectando ao chat..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -527,7 +527,7 @@ const WebSocketChatPage: React.FC = () => {
             startIcon={isStreaming ? <CircularProgress size={20} /> : <SendIcon />}
             sx={{ minWidth: 120 }}
           >
-            {isStreaming ? 'Sending...' : 'Send'}
+            {isStreaming ? 'Enviando...' : 'Enviar'}
           </Button>
         </InputArea>
       </ChatContainer>
@@ -549,7 +549,7 @@ const WebSocketChatPage: React.FC = () => {
           
           {conversations.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No conversations yet. Start chatting to create one!
+              Nenhuma conversa ainda. Comece a conversar para criar uma!
             </Typography>
           ) : (
             <List>

@@ -9,8 +9,7 @@ const Register = lazy(() => import('./pages/Register'));
 const NewProject = lazy(() => import('./pages/NewProject'));
 const EditProject = lazy(() => import('./pages/EditProject'));
 const EditProfile = lazy(() => import('./pages/EditProfile'));
-const ChatPage = lazy(() => import('./pages/ChatPage')); // Original HTTP-based chat
-const WebSocketChatPage = lazy(() => import('./pages/WebSocketChatPage')); // New WebSocket chat
+const WebSocketChatPage = lazy(() => import('./pages/WebSocketChatPage')); // WebSocket chat
 
 export const routeElements = [
   {
@@ -70,18 +69,10 @@ export const routeElements = [
     ),
   },
   {
-    path: 'chat/:id', // WebSocket streaming chat (new default)
+    path: 'chat/:id', // WebSocket chat
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <WebSocketChatPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: 'chat-http/:id', // Original HTTP-based chat (fallback)
-    element: (
-      <Suspense fallback={<LoadingSpinner />}>
-        <ChatPage />
       </Suspense>
     ),
   },
