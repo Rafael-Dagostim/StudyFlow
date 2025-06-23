@@ -34,7 +34,13 @@ export const EditProfile: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [userData, setUserData] = useState<User>({ // Tipado como User
-    id: '', firstName: '', lastName: '', email: '', phone: '', password: '',
+    id: '', 
+    name: '', // Use name instead of firstName/lastName initially
+    email: '', 
+    password: '',
+    phone: '',
+    firstName: '',
+    lastName: ''
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -66,8 +72,9 @@ export const EditProfile: React.FC = () => {
         // Agora, 'parsedUser' é definitivamente 'User', então não há erro de nulidade aqui
         setUserData({
           id: parsedUser.id,
-          firstName: parsedUser.firstName,
-          lastName: parsedUser.lastName,
+          name: parsedUser.name,
+          firstName: parsedUser.firstName || '',
+          lastName: parsedUser.lastName || '',
           email: parsedUser.email,
           phone: parsedUser.phone || '', // phone pode ser opcional em User
           password: parsedUser.password,
@@ -161,6 +168,7 @@ export const EditProfile: React.FC = () => {
     if (currentUserInLS) {
       const updatedUser: User = {
         ...currentUserInLS, // Preserva o ID original e outras propriedades
+        name: `${userData.firstName} ${userData.lastName}`.trim(),
         firstName: userData.firstName,
         lastName: userData.lastName,
         email: userData.email,

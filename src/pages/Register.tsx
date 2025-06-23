@@ -153,12 +153,13 @@ const Register: React.FC = () => {
 
     // Criar novo objeto de usuário
     const newUser: User = {
+      id: Date.now().toString(), // Adicionar id único
+      name: `${formData.firstName} ${formData.lastName}`.trim(), // Add required name field
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
       phone: formData.phone,
       password: formData.password,
-      id: Date.now().toString(), // Adicionar id único
     };
 
     const updatedUsers = [...users, newUser];
