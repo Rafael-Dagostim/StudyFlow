@@ -41,6 +41,16 @@ export interface StreamComplete {
   sources: DocumentSource[];
 }
 
+export interface FileGenerationUpdate {
+  fileId: string;
+  version: number;
+  status: 'pending' | 'generating' | 'completed' | 'failed';
+  progress: number; // 0-100
+  message: string;
+  errorMessage?: string;
+  timestamp: string;
+}
+
 export interface WebSocketEvents {
   // Client to Server
   'chat:start': {
@@ -84,6 +94,7 @@ export interface WebSocketEvents {
   'chat:error': {
     error: string;
   };
+  'file-generation-update': FileGenerationUpdate;
 }
 
 export class WebSocketService {
@@ -195,6 +206,10 @@ export class WebSocketService {
 
   onError(callback: (data: { error: string }) => void): () => void {
     return this.on('chat:error', callback);
+  }
+
+  onFileGenerationUpdate(callback: (data: FileGenerationUpdate) => void): () => void {
+    return this.on('file-generation-update', callback);
   }
 
   // Generic event handlers

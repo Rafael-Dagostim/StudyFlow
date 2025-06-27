@@ -6,7 +6,9 @@ import { AppBar, Toolbar, IconButton, Avatar, Button } from '@mui/material'; // 
 import { AccountCircle } from '@mui/icons-material';
 import LogoutIcon from '@mui/icons-material/Logout'; // Ícone de Logout importado
 import { useNavigate } from 'react-router-dom';
-import { User } from '../types/types'; // <-- CRUCIAL: Importar a interface User
+import { User } from '../types/types';
+import { authService } from '../services/api/auth.service';
+import { TokenManager } from '../services/api/axiosConfig';
 
 import logoImage from '../assets/logo3.png'; // Caminho para a imagem da sua logo
 
@@ -86,14 +88,22 @@ const Header = () => {
   }, []); // Array de dependências vazio para rodar apenas uma vez na montagem/desmontagem
 
   // Função para lidar com o Logout
-  const handleLogout = () => {
-    // --- IMPORTANTE: APENAS REMOVE O USUÁRIO DA SESSÃO ---
-    localStorage.removeItem('loggedInUser'); // Remove apenas a sessão do usuário logado
-    // 'users', 'projects' e 'profilePictures' PERMANECEM no localStorage
-    // Isso garante que os dados do usuário NÃO sejam apagados ao fazer logout.
-
-    navigate('/'); // <-- Redireciona para a tela de login (que é a rota '/')
-    console.log("Usuário deslogado. Dados de sessão limpos. Dados persistentes mantidos.");
+  const handleLogout = async () => {
+    try {
+      // Call API to invalidate session on server
+      await authService.signOut();
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+      // Continue with local logout even if API call fails
+    }
+    
+    // Clear local authentication data
+    TokenManager.clearTokens();
+    localStorage.removeItem('loggedInUser');
+    localStorage.removeItem('profilePictures'); // Clear profile pictures as well
+    
+    navigate('/'); // Redirect to login
+    console.log("Usuário deslogado. Dados de sessão limpos.");
   };
 
   // O ícone de usuário e de logout só aparecerão se houver um usuário logado

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -18,7 +18,10 @@ import {
   ListItemText,
   ListItemButton,
   Drawer,
-  Badge
+  Badge,
+  Card,
+  CardContent,
+  Tooltip
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -30,12 +33,23 @@ import {
   Chat as ChatIcon,
   History as HistoryIcon,
   Clear as ClearIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Add as AddIcon,
+  Edit as EditIcon,
+  Download as DownloadIcon,
+  Delete as DeleteIcon,
+  PictureAsPdf as PdfIcon,
+  Description as MarkdownIcon,
+  Article as DocIcon
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/material/styles';
 import { useWebSocketChat } from '../hooks/useWebSocketChat';
-import { Project, User } from '../types/types';
+import { Project, User, GeneratedFile } from '../types/types';
 import { projectsService } from '../services/api/projects.service';
+import { generatedFilesService } from '../services/api/generatedFiles.service';
+import { FileModal } from '../components/FileModal';
+import { VersionSelectionModal } from '../components/VersionSelectionModal';
+import { FileGenerationStatus } from '../components/FileGenerationStatus';
 
 const fadeInUp = keyframes`
   from {
@@ -48,13 +62,7 @@ const fadeInUp = keyframes`
   }
 `;
 
-const ChatContainer = styled(Container)(({ theme }) => ({
-  height: 'calc(100vh - 64px - 50px)', // Match original ChatPage height calculation
-  display: 'flex',
-  flexDirection: 'column',
-  padding: theme.spacing(2),
-  backgroundColor: theme.palette.grey[100]
-}));
+// Removed unused ChatContainer styled component
 
 const MessagesArea = styled(Paper)(({ theme }) => ({
   flexGrow: 1,
@@ -133,6 +141,7 @@ const SourcesPanel = styled(Box)(({ theme }) => ({
 }));
 
 const drawerWidth = 320;
+const sidebarWidth = 280;
 
 const WebSocketChatPage: React.FC = () => {
   const { id: projectId } = useParams<{ id: string }>();
@@ -143,6 +152,13 @@ const WebSocketChatPage: React.FC = () => {
   const [project, setProject] = useState<Project | null>(null);
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<GeneratedFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [fileModalOpen, setFileModalOpen] = useState(false);
+  const [fileModalMode, setFileModalMode] = useState<'create' | 'edit'>('create');
+  const [selectedFile, setSelectedFile] = useState<GeneratedFile | null>(null);
+  const [versionModalOpen, setVersionModalOpen] = useState(false);
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
 
   // Load project and user data using API
   useEffect(() => {
@@ -208,11 +224,28 @@ const WebSocketChatPage: React.FC = () => {
     loadConversation,
     clearError,
     clearMessages,
-    connect
+    connect,
+    getFileGenerationStatus,
+    fileGenerationUpdates
   } = wsChat;
 
   // Show loading state while project loads
   const showLoading = loading || !project || !loggedInUser;
+
+  // Load generated files
+  const loadFiles = useCallback(async () => {
+    if (!projectId) return;
+    
+    setFilesLoading(true);
+    try {
+      const response = await generatedFilesService.listFiles(projectId);
+      setFiles(response.data.data.files);
+    } catch (error) {
+      console.error('Error loading files:', error);
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [projectId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -225,8 +258,24 @@ const WebSocketChatPage: React.FC = () => {
   useEffect(() => {
     if (isConnected && projectId && project) {
       loadConversations(projectId);
+      loadFiles();
     }
-  }, [isConnected, projectId, loadConversations, project]);
+  }, [isConnected, projectId, loadConversations, project, loadFiles]);
+
+  // Refresh files when generation completes
+  useEffect(() => {
+    const completedFiles = Array.from(fileGenerationUpdates.values())
+      .filter(update => update.status === 'completed');
+    
+    if (completedFiles.length > 0) {
+      // Small delay to ensure backend has fully processed the file
+      const timer = setTimeout(() => {
+        loadFiles();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [fileGenerationUpdates, loadFiles]);
 
   if (showLoading) {
     return (
@@ -267,6 +316,104 @@ const WebSocketChatPage: React.FC = () => {
   const handleConversationSelect = (conversationId: string) => {
     loadConversation(conversationId);
     setDrawerOpen(false);
+  };
+
+  const handleCreateFile = () => {
+    setFileModalMode('create');
+    setSelectedFile(null);
+    setFileModalOpen(true);
+  };
+
+  const handleEditFile = (file: GeneratedFile) => {
+    setFileModalMode('edit');
+    setSelectedFile(file);
+    setFileModalOpen(true);
+  };
+
+  const handleDownloadFile = async (file: GeneratedFile) => {
+    if (file.versions.filter(v => v.hasContent).length > 1) {
+      setSelectedFile(file);
+      setVersionModalOpen(true);
+    } else {
+      const latestVersion = file.versions.find(v => v.hasContent);
+      if (latestVersion) {
+        await downloadFileVersion(file, latestVersion.version);
+      }
+    }
+  };
+
+  const downloadFileVersion = async (file: GeneratedFile, version: number) => {
+    setDownloadingFile(file.id);
+    try {
+      // Use backend download for all file formats
+      const blob = await generatedFilesService.downloadFile(projectId!, file.id, version);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${file.displayName}.${file.format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download failed:', error);
+      if (error instanceof Error) {
+        if (error.message.includes('Unauthorized')) {
+          alert('Sessão expirada. Faça login novamente.');
+        } else {
+          alert('Falha no download. Tente novamente.');
+        }
+      } else {
+        alert('Falha no download. Tente novamente.');
+      }
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
+
+  const handleDeleteFile = async (file: GeneratedFile) => {
+    const confirmDelete = window.confirm(`Tem certeza que deseja excluir o arquivo "${file.displayName}"? Esta ação não pode ser desfeita.`);
+    
+    if (confirmDelete) {
+      try {
+        await generatedFilesService.deleteFile(projectId!, file.id);
+        loadFiles(); // Refresh the file list
+        alert('Arquivo excluído com sucesso.');
+      } catch (error) {
+        console.error('Delete failed:', error);
+        alert('Falha ao excluir arquivo. Tente novamente.');
+      }
+    }
+  };
+
+  const handleFileModalSuccess = () => {
+    loadFiles();
+  };
+
+  const getFileIcon = (format: string) => {
+    switch (format) {
+      case 'pdf':
+        return <PdfIcon />;
+      case 'markdown':
+        return <MarkdownIcon />;
+      case 'docx':
+        return <DocIcon />;
+      default:
+        return <DocIcon />;
+    }
+  };
+
+  const getFileTypeLabel = (type: string) => {
+    const types: Record<string, string> = {
+      'study-guide': 'Guia de Estudo',
+      'quiz': 'Quiz',
+      'summary': 'Resumo',
+      'lesson-plan': 'Plano de Aula',
+      'custom': 'Customizado'
+    };
+    return types[type] || type;
   };
 
   const getStatusDisplay = () => {
@@ -322,44 +469,186 @@ const WebSocketChatPage: React.FC = () => {
   }
 
   return (
-    <>
-      {/* Header similar to original ChatPage */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, p: 2 }}>
-        <IconButton 
-          color="primary" 
-          onClick={() => navigate('/home')}
-          aria-label="voltar"
-        >
-          <ArrowBackIcon />
-        </IconButton>
-        
-        <Box sx={{ flexGrow: 1, textAlign: 'center', mr: 4 }}>
-          <Typography variant="h5" component="h1">
-            Chat com IA sobre: {project.subject}
-          </Typography>
-          <Typography variant="subtitle2" color="text.secondary">
-            Chat em Tempo Real
-          </Typography>
+    <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)' }}>
+      {/* Files Sidebar */}
+      <Paper sx={{ 
+        width: sidebarWidth, 
+        display: 'flex', 
+        flexDirection: 'column',
+        borderRadius: 0,
+        borderRight: '1px solid',
+        borderColor: 'divider'
+      }}>
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="h6">
+              Arquivos
+            </Typography>
+            <IconButton
+              size="small"
+              onClick={handleCreateFile}
+              color="primary"
+            >
+              <AddIcon />
+            </IconButton>
+          </Box>
+          {project && (
+            <Typography variant="body2" color="text.secondary">
+              {project.subject}
+            </Typography>
+          )}
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <IconButton onClick={() => setDrawerOpen(true)}>
-            <Badge badgeContent={conversations?.length || 0} color="primary">
-              <HistoryIcon />
-            </Badge>
-          </IconButton>
+        {/* Active File Generations */}
+        {Array.from(fileGenerationUpdates.values()).filter(update => 
+          update.status === 'pending' || update.status === 'generating'
+        ).length > 0 && (
+          <Box sx={{ px: 1, mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              Gerações em Andamento
+            </Typography>
+            {Array.from(fileGenerationUpdates.values())
+              .filter(update => update.status === 'pending' || update.status === 'generating')
+              .map(update => (
+                <FileGenerationStatus
+                  key={update.fileId}
+                  fileId={update.fileId}
+                  fileName={files.find(f => f.id === update.fileId)?.displayName || 'Arquivo'}
+                  update={update}
+                  onRetry={() => {
+                    // Retry functionality can be implemented later
+                    console.log('Retry file generation:', update.fileId);
+                  }}
+                />
+              ))}
+          </Box>
+        )}
 
-          <IconButton onClick={clearMessages}>
-            <ClearIcon />
-          </IconButton>
-
-          <IconButton onClick={connect} disabled={isConnecting}>
-            <RefreshIcon />
-          </IconButton>
+        <Box sx={{ flex: 1, overflow: 'auto' }}>
+          {filesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : files.length === 0 ? (
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                Nenhum arquivo ainda
+              </Typography>
+            </Box>
+          ) : (
+            <List sx={{ p: 0 }}>
+              {files.map((file) => (
+                <ListItem key={file.id} sx={{ px: 1, py: 0.5 }}>
+                  <Card sx={{ width: '100%' }}>
+                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+                        <Box sx={{ mr: 1, color: 'text.secondary' }}>
+                          {getFileIcon(file.format)}
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                            {file.displayName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {getFileTypeLabel(file.fileType)} • v{file.currentVersion}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                        <Tooltip title="Editar">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditFile(file)}
+                          >
+                            <EditIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Download">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownloadFile(file)}
+                            disabled={downloadingFile === file.id}
+                          >
+                            {downloadingFile === file.id ? (
+                              <CircularProgress size={16} />
+                            ) : (
+                              <DownloadIcon sx={{ fontSize: 16 }} />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Excluir">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteFile(file)}
+                            color="error"
+                          >
+                            <DeleteIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </ListItem>
+              ))}
+            </List>
+          )}
         </Box>
-      </Box>
 
-      <ChatContainer maxWidth="md">
+        <Box sx={{ p: 1 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateFile}
+            size="small"
+          >
+            Novo Arquivo
+          </Button>
+        </Box>
+      </Paper>
+
+      {/* Main Chat Area */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <IconButton 
+            color="primary" 
+            onClick={() => navigate('/home')}
+            aria-label="voltar"
+          >
+            <ArrowBackIcon />
+          </IconButton>
+          
+          <Box sx={{ flexGrow: 1, textAlign: 'center', mr: 4 }}>
+            <Typography variant="h6" component="h1">
+              Chate com IA
+            </Typography>
+            {project && (
+              <Typography variant="body2" color="text.secondary">
+                {project.subject}
+              </Typography>
+            )}
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <IconButton onClick={() => setDrawerOpen(true)}>
+              <Badge badgeContent={conversations?.length || 0} color="primary">
+                <HistoryIcon />
+              </Badge>
+            </IconButton>
+
+            <IconButton onClick={clearMessages}>
+              <ClearIcon />
+            </IconButton>
+
+            <IconButton onClick={connect} disabled={isConnecting}>
+              <RefreshIcon />
+            </IconButton>
+          </Box>
+        </Box>
+
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2 }}>
         {/* Connection Status */}
         <StatusBar>
           {statusDisplay.icon}
@@ -505,32 +794,33 @@ const WebSocketChatPage: React.FC = () => {
           )}
 
           <div ref={messagesEndRef} />
-        </MessagesArea>
+          </MessagesArea>
 
-        {/* Input Area */}
-        <InputArea>
-          <TextField
-            fullWidth
-            multiline
-            maxRows={4}
-            variant="outlined"
-            placeholder={isConnected ? "Digite sua mensagem..." : "Conectando ao chat..."}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={!isConnected || isStreaming}
-          />
-          <Button
-            variant="contained"
-            onClick={handleSendMessage}
-            disabled={message.trim() === '' || !isConnected || isStreaming}
-            startIcon={isStreaming ? <CircularProgress size={20} /> : <SendIcon />}
-            sx={{ minWidth: 120 }}
-          >
-            {isStreaming ? 'Enviando...' : 'Enviar'}
-          </Button>
-        </InputArea>
-      </ChatContainer>
+          {/* Input Area */}
+          <InputArea>
+            <TextField
+              fullWidth
+              multiline
+              maxRows={4}
+              variant="outlined"
+              placeholder={isConnected ? "Digite algo..." : "Conectando ao chat..."}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={!isConnected || isStreaming}
+            />
+            <Button
+              variant="contained"
+              onClick={handleSendMessage}
+              disabled={message.trim() === '' || !isConnected || isStreaming}
+              startIcon={isStreaming ? <CircularProgress size={20} /> : <SendIcon />}
+              sx={{ minWidth: 120 }}
+            >
+              {isStreaming ? 'Enviando...' : 'Enviar'}
+            </Button>
+          </InputArea>
+        </Box>
+      </Box>
 
       {/* Conversations Drawer */}
       <Drawer
@@ -577,7 +867,30 @@ const WebSocketChatPage: React.FC = () => {
           )}
         </Box>
       </Drawer>
-    </>
+
+      {/* File Modal */}
+      <FileModal
+        open={fileModalOpen}
+        onClose={() => setFileModalOpen(false)}
+        projectId={projectId!}
+        mode={fileModalMode}
+        file={selectedFile || undefined}
+        onSuccess={handleFileModalSuccess}
+      />
+
+      {/* Version Selection Modal */}
+      {selectedFile && (
+        <VersionSelectionModal
+          open={versionModalOpen}
+          onClose={() => setVersionModalOpen(false)}
+          file={selectedFile}
+          onVersionSelect={(version) => {
+            downloadFileVersion(selectedFile, version);
+            setVersionModalOpen(false);
+          }}
+        />
+      )}
+    </Box>
   );
 };
 

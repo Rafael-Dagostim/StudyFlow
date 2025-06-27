@@ -6,7 +6,8 @@ import {
   DocumentSource, 
   ChatStatus,
   StreamChunk,
-  StreamComplete 
+  StreamComplete,
+  FileGenerationUpdate
 } from '../services/websocket.service';
 
 export interface UseWebSocketChatState {
@@ -21,6 +22,7 @@ export interface UseWebSocketChatState {
   isStreaming: boolean;
   streamingContent: string;
   error: string | null;
+  fileGenerationUpdates: Map<string, FileGenerationUpdate>;
 }
 
 export interface UseWebSocketChatActions {
@@ -31,6 +33,7 @@ export interface UseWebSocketChatActions {
   loadConversation: (conversationId: string) => void;
   clearError: () => void;
   clearMessages: () => void;
+  getFileGenerationStatus: (fileId: string) => FileGenerationUpdate | undefined;
 }
 
 export interface UseWebSocketChatReturn extends UseWebSocketChatState, UseWebSocketChatActions {}
@@ -48,6 +51,7 @@ export function useWebSocketChat(projectId: string, enabled: boolean = true): Us
     isStreaming: false,
     streamingContent: '',
     error: null,
+    fileGenerationUpdates: new Map(),
   });
 
   const cleanupFunctions = useRef<Array<() => void>>([]);
@@ -159,6 +163,17 @@ export function useWebSocketChat(projectId: string, enabled: boolean = true): Us
             isStreaming: false,
             currentStatus: { status: 'error', stage: 'generating', message: data.error }
           }));
+        }),
+
+        webSocketService.onFileGenerationUpdate((data) => {
+          setState(prev => {
+            const newUpdates = new Map(prev.fileGenerationUpdates);
+            newUpdates.set(data.fileId, data);
+            return {
+              ...prev,
+              fileGenerationUpdates: newUpdates
+            };
+          });
         })
       ];
 
@@ -252,6 +267,11 @@ export function useWebSocketChat(projectId: string, enabled: boolean = true): Us
     }));
   }, []);
 
+  // Get file generation status
+  const getFileGenerationStatus = useCallback((fileId: string) => {
+    return state.fileGenerationUpdates.get(fileId);
+  }, [state.fileGenerationUpdates]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -275,5 +295,6 @@ export function useWebSocketChat(projectId: string, enabled: boolean = true): Us
     loadConversation,
     clearError,
     clearMessages,
+    getFileGenerationStatus,
   };
 }
