@@ -6,9 +6,10 @@ import axios from 'axios'; // <-- Import just axios
 import { ApiResponse, IRefreshTokenRequest, IRefreshTokenResponseData } from '../../types/types';
 
 // URL Base da sua API, conforme a documentação
-const API_BASE_URL = 'http://localhost:3000/api';
+// Use relative URLs in development to leverage proxy, absolute URLs in production
+const API_BASE_URL = process.env.NODE_ENV === 'development' ? '/api' : 'http://localhost:3000/api';
 // URL Base para rotas que não estão sob /api (ex: /health)
-const API_ROOT_URL = 'http://localhost:3000';
+const API_ROOT_URL = process.env.NODE_ENV === 'development' ? '' : 'http://localhost:3000';
 
 let isRefreshing = false; // Flag para evitar múltiplas requisições de refresh de token
 let failedRequestsQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void }> = []; // Fila de requisições falhas
@@ -32,10 +33,12 @@ export const TokenManager = {
 // --- Instância Axios Principal (para rotas API) ---
 const api: any = axios.create({ // Using any type
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 30000, // Increased timeout to 30 seconds
   headers: {
     'Content-Type': 'application/json',
   },
+  // Additional configuration to handle connection issues
+  validateStatus: (status) => status < 500, // Don't throw for 4xx errors
 });
 
 // --- Instância Axios Separada para Refresh Token ---
@@ -65,6 +68,26 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response: any) => response, // Using any type
   async (error: any) => { // Use any for now
+    // Enhanced error logging
+    if (error.code === 'ECONNRESET' || error.code === 'NETWORK_ERROR' || 
+        error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
+      console.error('🚨 Network connection reset detected:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        code: error.code,
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Retry logic for network errors (but not for auth requests)
+      const originalRequest = error.config as any;
+      if (originalRequest && !originalRequest._retry && !originalRequest.url?.includes('/auth/')) {
+        originalRequest._retry = true;
+        console.log('🔄 Retrying request after network error...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        return api(originalRequest);
+      }
+    }
     const originalRequest = error.config as any; // Use any for config
 
     if (error.response?.status === 401 && originalRequest && originalRequest.url !== '/auth/refresh') {
@@ -72,6 +95,7 @@ api.interceptors.response.use(
 
       if (!refreshToken || isRefreshing) {
         TokenManager.clearTokens();
+        localStorage.removeItem('loggedInUser');
         window.location.href = '/login';
         return Promise.reject(error);
       }
@@ -102,6 +126,7 @@ api.interceptors.response.use(
       } catch (refreshError: any) {
         console.error('Erro ao renovar token:', refreshError);
         TokenManager.clearTokens();
+        localStorage.removeItem('loggedInUser');
         window.location.href = '/login';
         failedRequestsQueue.forEach(p => p.reject(refreshError));
         failedRequestsQueue = [];

@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User } from '../types/types'; // <-- Importante: Importar a interface 'User'
+import { authService } from '../services/api/auth.service';
+import { TokenManager } from '../services/api/axiosConfig';
 import {
   Box,
   Button,
@@ -10,6 +11,8 @@ import {
   Typography,
   Divider,
   Paper,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
@@ -70,8 +73,10 @@ export const Login: React.FC = () => {
 
   const [emailError, setEmailError] = useState(false);
   const [emailHelperText, setEmailHelperText] = useState('');
-  const [passwordError, setPasswordError] = useState(false); // NOVO: Estado para erro de senha
-  const [passwordHelperText, setPasswordHelperText] = useState(''); // NOVO: Estado para helper de senha
+  const [passwordError, setPasswordError] = useState(false);
+  const [passwordHelperText, setPasswordHelperText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [generalError, setGeneralError] = useState('');
 
 
   const validateEmail = (email: string) => {
@@ -88,14 +93,24 @@ export const Login: React.FC = () => {
       setEmailError(false);
       setEmailHelperText('');
     }
-    if (name === 'password') { // NOVO: Limpa erro de senha ao digitar
+    if (name === 'password') {
       setPasswordError(false);
       setPasswordHelperText('');
     }
+    
+    // Limpa erro geral
+    setGeneralError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Reset errors
+    setEmailError(false);
+    setEmailHelperText('');
+    setPasswordError(false);
+    setPasswordHelperText('');
+    setGeneralError('');
 
     const isEmailValid = validateEmail(formData.email);
     if (!isEmailValid) {
@@ -104,33 +119,51 @@ export const Login: React.FC = () => {
       return;
     }
 
-    // --- Lógica de validação de login (com tipagem 'User') ---
-    const storedUsers = localStorage.getItem('users');
-    // Carrega a lista de usuários, tipando-a como 'User[]'
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-
-    // Procura o usuário que corresponde às credenciais, tipando-o como 'User | undefined'
-    const foundUser: User | undefined = users.find(
-      (user: User) => // O 'user' dentro do find também é tipado como 'User'
-        user.email === formData.email && user.password === formData.password
-    );
-
-    if (foundUser) {
-      // Login bem-sucedido: Armazenar o OBJETO COMPLETO do usuário logado no localStorage
-      // A chave 'loggedInUser' armazenará o objeto 'User' completo
-      localStorage.setItem('loggedInUser', JSON.stringify(foundUser));
-      console.log('Login bem-sucedido!', foundUser);
-      navigate('/home'); // Redireciona para a página Home
-    } else {
-      // Login falhou
-      setEmailError(true);
-      setPasswordError(true); // NOVO: Ativa erro para o campo de senha também
-      setEmailHelperText('E-mail ou senha incorretos.');
-      setPasswordHelperText('E-mail ou senha incorretos.'); // NOVO: Mensagem de erro para senha
-      console.log('Falha no login: credenciais inválidas.');
-      alert('E-mail ou senha incorretos. Tente novamente.'); // Feedback ao usuário
+    if (!formData.password.trim()) {
+      setPasswordError(true);
+      setPasswordHelperText('Senha é obrigatória.');
+      return;
     }
-    // --- Fim da lógica de validação de login ---
+
+    setIsLoading(true);
+
+    try {
+      // Call API for authentication
+      const response = await authService.signIn({
+        email: formData.email,
+        password: formData.password
+      });
+
+      const { accessToken, refreshToken, professor } = response.data;
+      
+      // Store tokens securely
+      TokenManager.setAccessToken(accessToken);
+      TokenManager.setRefreshToken(refreshToken);
+      
+      // User data is already included in login response
+      const user = professor;
+      
+      // Store user data for UI purposes (but auth relies on tokens)
+      localStorage.setItem('loggedInUser', JSON.stringify(user));
+      
+      console.log('Login bem-sucedido!', user);
+      navigate('/home');
+    } catch (error: any) {
+      console.error('Erro no login:', error);
+      
+      if (error.response?.status === 401) {
+        setEmailError(true);
+        setPasswordError(true);
+        setEmailHelperText('E-mail ou senha incorretos.');
+        setPasswordHelperText('E-mail ou senha incorretos.');
+      } else if (error.response?.status === 400) {
+        setGeneralError(error.response.data.message || 'Dados inválidos.');
+      } else {
+        setGeneralError('Erro de conexão. Tente novamente.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -159,8 +192,12 @@ export const Login: React.FC = () => {
               <img src={logoImage} alt="Logo StudyFlow" height="300" />
             </Box>
 
-            {/* Opcional: Se você quiser manter o texto 'StudyFlow' junto com a logo, descomente a linha abaixo */}
-            {/* <LogoText>StudyFlow</LogoText> */}
+            {/* Error Alert */}
+            {generalError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {generalError}
+              </Alert>
+            )}
 
             <StyledTextField
               fullWidth
@@ -195,8 +232,10 @@ export const Login: React.FC = () => {
               variant="contained"
               color="primary"
               size="large"
+              disabled={isLoading}
+              startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
             >
-              Login
+              {isLoading ? 'Entrando...' : 'Login'}
             </LoginButton>
 
             <DividerWithText>ou</DividerWithText>
@@ -211,6 +250,7 @@ export const Login: React.FC = () => {
                 fontWeight: 600,
               }}
               onClick={() => navigate('/register')}
+              disabled={isLoading}
             >
               Cadastre-se
             </Button>

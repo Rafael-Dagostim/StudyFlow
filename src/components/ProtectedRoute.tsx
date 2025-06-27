@@ -1,6 +1,8 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
+import { authService } from '../services/api/auth.service';
+import { TokenManager } from '../services/api/axiosConfig';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,23 +15,28 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   React.useEffect(() => {
     // Check authentication status
-    const checkAuth = () => {
-      const token = localStorage.getItem('accessToken');
-      const user = localStorage.getItem('loggedInUser');
+    const checkAuth = async () => {
+      const token = TokenManager.getAccessToken();
       
-      // For now, check if both token and user exist
-      // In production, validate token with backend
-      if (token && user) {
-        try {
-          JSON.parse(user); // Validate user data is valid JSON
-          setIsAuthenticated(true);
-        } catch {
-          setIsAuthenticated(false);
-        }
-      } else {
+      if (!token) {
         setIsAuthenticated(false);
+        setIsChecking(false);
+        return;
       }
-      setIsChecking(false);
+
+      try {
+        // Validate token with backend
+        await authService.verifyToken();
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.warn('Token validation failed:', error);
+        // Clear invalid tokens
+        TokenManager.clearTokens();
+        localStorage.removeItem('loggedInUser');
+        setIsAuthenticated(false);
+      } finally {
+        setIsChecking(false);
+      }
     };
 
     checkAuth();

@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RegisterFormData, User } from '../types/types'; // <-- Importar 'User' e 'RegisterFormData' do 'types.ts'
+import { RegisterFormData } from '../types/types';
+import { authService } from '../services/api/auth.service';
+import { TokenManager } from '../services/api/axiosConfig';
 import {
   Box,
   Button,
@@ -10,6 +12,8 @@ import {
   Typography,
   Divider,
   Paper,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
@@ -75,6 +79,9 @@ const Register: React.FC = () => {
   const [emailHelperText, setEmailHelperText] = useState('');
   const [passwordMatchError, setPasswordMatchError] = useState(false);
   const [passwordMatchHelperText, setPasswordMatchHelperText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [generalError, setGeneralError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -85,6 +92,10 @@ const Register: React.FC = () => {
     const { name, value } = e.target;
     setFormData((prev: RegisterFormData) => ({ ...prev, [name]: value })); // <-- 'prev' tipado
 
+    // Limpa mensagens de erro ao digitar
+    setGeneralError('');
+    setSuccessMessage('');
+    
     // Validação de email em tempo real
     if (name === 'email') {
       if (value === '') {
@@ -114,8 +125,16 @@ const Register: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Reset errors
+    setEmailError(false);
+    setEmailHelperText('');
+    setPasswordMatchError(false);
+    setPasswordMatchHelperText('');
+    setGeneralError('');
+    setSuccessMessage('');
 
     // Validação final do email
     const isEmailValid = validateEmail(formData.email);
@@ -133,43 +152,68 @@ const Register: React.FC = () => {
     }
 
     if (formData.password.length < 6) {
-        setPasswordMatchError(true);
-        setPasswordMatchHelperText('A senha deve ter no mínimo 6 caracteres.');
-        return;
+      setPasswordMatchError(true);
+      setPasswordMatchHelperText('A senha deve ter no mínimo 6 caracteres.');
+      return;
     }
 
-    // --- Lógica para salvar usuário no localStorage ---
-    const storedUsers = localStorage.getItem('users');
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-
-    // Verificar se o e-mail já está cadastrado
-    const emailExists = users.some((user: User) => user.email === formData.email);
-
-    if (emailExists) {
-      setEmailError(true);
-      setEmailHelperText('Este e-mail já está cadastrado.');
-      return; // Impede o cadastro
+    // Verificar campos obrigatórios
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setGeneralError('Nome e sobrenome são obrigatórios.');
+      return;
     }
 
-    // Criar novo objeto de usuário
-    const newUser: User = {
-      id: Date.now().toString(), // Adicionar id único
-      name: `${formData.firstName} ${formData.lastName}`.trim(), // Add required name field
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password,
-    };
+    setIsLoading(true);
 
-    const updatedUsers = [...users, newUser];
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-    // --- Fim da lógica para salvar usuário ---
+    try {
+      // Prepare registration data
+      const registrationData = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        password: formData.password
+      };
 
-    console.log('Usuário registrado:', newUser);
-    // Após o cadastro, redirecionar para a tela de Login
-    navigate('/'); // Redireciona explicitamente para /
-    alert('Cadastro realizado com sucesso! Faça login.'); // Feedback para o usuário
+      // Call API for registration
+      const response = await authService.signUp(registrationData);
+      
+      const { accessToken, refreshToken, professor } = response.data;
+      
+      // Store tokens securely
+      TokenManager.setAccessToken(accessToken);
+      TokenManager.setRefreshToken(refreshToken);
+      
+      // Store user data for UI purposes (but auth relies on tokens)
+      localStorage.setItem('loggedInUser', JSON.stringify(professor));
+      
+      console.log('Usuário registrado:', professor);
+      
+      // Show success message
+      setSuccessMessage('Cadastro realizado com sucesso! Redirecionando...');
+      
+      // Redirect after a short delay
+      setTimeout(() => {
+        navigate('/home');
+      }, 1500);
+      
+    } catch (error: any) {
+      console.error('Erro no cadastro:', error);
+      
+      if (error.response?.status === 400) {
+        const message = error.response.data.message;
+        if (message?.includes('email') || message?.includes('already exists')) {
+          setEmailError(true);
+          setEmailHelperText('Este e-mail já está cadastrado.');
+        } else {
+          setGeneralError(message || 'Dados inválidos.');
+        }
+      } else if (error.response?.status === 422) {
+        setGeneralError('Dados inválidos. Verifique as informações.');
+      } else {
+        setGeneralError('Erro de conexão. Tente novamente.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -197,6 +241,18 @@ const Register: React.FC = () => {
             </Box>
             {/* --- Título do Cadastro --- */}
             <LogoText>Cadastro</LogoText>
+
+            {/* Error and Success Messages */}
+            {generalError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {generalError}
+              </Alert>
+            )}
+            {successMessage && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                {successMessage}
+              </Alert>
+            )}
 
             <StyledTextField
               fullWidth margin="normal" label="Nome" name="firstName"
@@ -228,8 +284,10 @@ const Register: React.FC = () => {
 
             <AuthButton
               fullWidth type="submit" variant="contained" color="primary" size="large"
+              disabled={isLoading}
+              startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
             >
-              Cadastrar
+              {isLoading ? 'Cadastrando...' : 'Cadastrar'}
             </AuthButton>
 
             <DividerWithText>já tem conta?</DividerWithText> {/* Divisor */}
@@ -237,7 +295,8 @@ const Register: React.FC = () => {
             <Button
               fullWidth variant="outlined" color="primary" size="large"
               sx={{ borderRadius: '4px', fontWeight: 600, }}
-              onClick={() => navigate('/')} // <-- Correção: usar '/' de forma explícita
+              onClick={() => navigate('/')}
+              disabled={isLoading}
             >
               Fazer Login
             </Button>
