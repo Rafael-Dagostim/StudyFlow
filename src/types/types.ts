@@ -262,6 +262,64 @@ export interface IUpdateConversationResponseData {
   conversation: IConversation;
 }
 
+// Generated Files
+export interface GeneratedFile {
+  id: string;
+  fileName: string;
+  displayName: string;
+  fileType: 'study-guide' | 'quiz' | 'summary' | 'lesson-plan' | 'custom';
+  format: 'pdf' | 'markdown' | 'docx';
+  currentVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  versions: FileVersion[];
+}
+
+export interface FileVersion {
+  version: number;
+  createdAt: string;
+  sizeBytes: number;
+  pageCount?: number;
+  editPrompt?: string;
+  hasContent: boolean;
+  generationTime?: number;
+}
+
+export interface FileType {
+  id: string;
+  name: string;
+  description: string;
+  formats: string[];
+}
+
+export interface CreateFileRequest {
+  prompt: string;
+  displayName: string;
+  fileType: string;
+  format: string;
+  options?: {
+    language?: 'en' | 'pt';
+    difficulty?: 'basic' | 'intermediate' | 'advanced';
+    includeImages?: boolean;
+  };
+}
+
+export interface EditFileRequest {
+  editPrompt: string;
+  baseVersion?: number;
+}
+
+export interface GenerationStatus {
+  fileId: string;
+  version: number;
+  status: 'processing' | 'completed' | 'failed';
+  generationTime?: number;
+  sizeBytes?: number;
+  pageCount?: number;
+  downloadUrl?: string;
+  error?: string;
+}
+
 // Sistema RAG
 export interface IRagStatusResponseData {
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
