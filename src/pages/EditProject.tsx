@@ -57,7 +57,6 @@ export const EditProject: React.FC = () => {
         const user: User = JSON.parse(storedLoggedInUser);
         setLoggedInUser(user);
       } catch (e) {
-        console.error("Erro ao parsear loggedInUser no EditProject:", e);
         navigate('/'); // <-- Redireciona para / (consistente com o App.tsx)
       }
     } else {
@@ -95,7 +94,6 @@ export const EditProject: React.FC = () => {
           setAttachedFile(null);
         }
       } catch (error) {
-        console.error("Erro ao buscar projeto:", error);
         alert("Projeto não encontrado ou você não tem permissão para editá-lo.");
         navigate('/home');
       }
@@ -154,7 +152,6 @@ export const EditProject: React.FC = () => {
       
       navigate('/home');
     } catch (error: any) {
-      console.error("Erro ao atualizar projeto:", error);
       
       // Check if it's a duplicate name error
       if (error.response?.status === 400 && error.response?.data?.message?.includes("already exists")) {

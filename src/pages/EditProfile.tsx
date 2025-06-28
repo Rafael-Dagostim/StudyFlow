@@ -48,6 +48,13 @@ export const EditProfile: React.FC = () => {
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const reader = new FileReader();
+  
+  reader.onload = () => {
+    if (reader.result) {
+      setProfilePicture(reader.result as string);
+    }
+  };
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
 
@@ -81,7 +88,6 @@ export const EditProfile: React.FC = () => {
         });
 
       } catch (e) {
-        console.error("EditProfile: ERRO ao parsear loggedInUser do localStorage.", e);
         navigate('/'); // Redireciona se os dados estiverem corrompidos
         return; // Sai do useEffect
       }
@@ -103,7 +109,6 @@ export const EditProfile: React.FC = () => {
           setProfilePicture(null);
         }
       } catch (e) {
-        console.error("EditProfile: ERRO ao parsear profilePictures do localStorage.", e);
         setProfilePicture(null);
       }
     } else {
@@ -134,7 +139,6 @@ export const EditProfile: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       setProfilePictureFile(file);
-      const reader = new FileReader(); reader.onloadend = () => { setProfilePicture(reader.result as string); console.log("EditProfile: Imagem Base64 gerada (primeiros 50 chars):", (reader.result as string).substring(0, 50) + '...'); };
       reader.readAsDataURL(file);
     } else { setProfilePictureFile(null); setProfilePicture(null); }
   };
@@ -185,22 +189,17 @@ export const EditProfile: React.FC = () => {
 
       if (profilePicture && updatedUser.id) {
         profilePicturesMap[updatedUser.id] = profilePicture;
-        console.log('EditProfile: Salvando foto de perfil para user ID:', updatedUser.id);
       } else if (updatedUser.id) {
         delete profilePicturesMap[updatedUser.id];
-        console.log('EditProfile: Removendo foto de perfil para user ID:', updatedUser.id);
       }
       localStorage.setItem('profilePictures', JSON.stringify(profilePicturesMap));
 
-      console.log('Dados do usuário e foto atualizados e salvos:', updatedUser);
     } else {
-      console.error("Usuário logado não encontrado na lista geral de usuários ao salvar perfil.");
       navigate('/');
       return;
     }
 
     window.dispatchEvent(new CustomEvent('profileUpdate'));
-    console.log("EditProfile: Disparando evento 'profileUpdate' para o Header!");
 
     navigate('/home');
   };

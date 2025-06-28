@@ -70,7 +70,6 @@ const Register: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    phone: '',
     password: '',
     confirmPassword: '',
   });
@@ -185,7 +184,6 @@ const Register: React.FC = () => {
       // Store user data for UI purposes (but auth relies on tokens)
       localStorage.setItem('loggedInUser', JSON.stringify(professor));
       
-      console.log('Usuário registrado:', professor);
       
       // Show success message
       setSuccessMessage('Cadastro realizado com sucesso! Redirecionando...');
@@ -196,7 +194,6 @@ const Register: React.FC = () => {
       }, 1500);
       
     } catch (error: any) {
-      console.error('Erro no cadastro:', error);
       
       if (error.response?.status === 400) {
         const message = error.response.data.message;
@@ -266,10 +263,6 @@ const Register: React.FC = () => {
               fullWidth margin="normal" label="Email" name="email" type="email"
               value={formData.email} onChange={handleChange} required
               error={emailError} helperText={emailHelperText}
-            />
-            <StyledTextField
-              fullWidth margin="normal" label="Telefone" name="phone" type="tel"
-              value={formData.phone} onChange={handleChange}
             />
             <StyledTextField
               fullWidth margin="normal" label="Senha" name="password" type="password"

@@ -122,26 +122,21 @@ export class WebSocketService {
       });
 
       this.socket.on('connect', () => {
-        console.log('WebSocket connected successfully');
         resolve(this.socket!);
       });
 
       this.socket.on('connect_error', (error) => {
-        console.error('WebSocket connection error:', error);
         reject(error);
       });
 
       this.socket.on('disconnect', (reason) => {
-        console.log('WebSocket disconnected:', reason);
       });
 
       // Set up automatic reconnection handling
       this.socket.on('reconnect', (attemptNumber) => {
-        console.log('WebSocket reconnected after', attemptNumber, 'attempts');
       });
 
       this.socket.on('reconnect_error', (error) => {
-        console.error('WebSocket reconnection failed:', error);
       });
     });
   }
@@ -215,7 +210,6 @@ export class WebSocketService {
   // Generic event handlers
   private emit<K extends keyof WebSocketEvents>(event: K, data: WebSocketEvents[K]): void {
     if (!this.socket) {
-      console.error('WebSocket not connected');
       return;
     }
     this.socket.emit(event, data);
@@ -226,7 +220,6 @@ export class WebSocketService {
     callback: (data: WebSocketEvents[K]) => void
   ): () => void {
     if (!this.socket) {
-      console.error('WebSocket not connected');
       return () => {};
     }
 

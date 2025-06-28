@@ -146,10 +146,8 @@ export const Login: React.FC = () => {
       // Store user data for UI purposes (but auth relies on tokens)
       localStorage.setItem('loggedInUser', JSON.stringify(user));
       
-      console.log('Login bem-sucedido!', user);
       navigate('/home');
     } catch (error: any) {
-      console.error('Erro no login:', error);
       
       if (error.response?.status === 401) {
         setEmailError(true);
@@ -235,7 +233,7 @@ export const Login: React.FC = () => {
               disabled={isLoading}
               startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
             >
-              {isLoading ? 'Entrando...' : 'Login'}
+              {isLoading ? 'Entrando...' : 'Entrar'}
             </LoginButton>
 
             <DividerWithText>ou</DividerWithText>

@@ -23,9 +23,6 @@ const Header = () => {
     const storedLoggedInUser = localStorage.getItem('loggedInUser');
     const storedProfilePictures = localStorage.getItem('profilePictures'); // Nova chave para o mapa de fotos
 
-    console.log('Header - Carregando dados para o usuário logado:');
-    console.log('  storedLoggedInUser:', storedLoggedInUser ? storedLoggedInUser.substring(0, 50) + '...' : null);
-    console.log('  storedProfilePictures:', storedProfilePictures ? storedProfilePictures.substring(0, 50) + '...' : null);
 
     let parsedLoggedInUser: User | null = null; // Variável temporária para o usuário parseado
     if (storedLoggedInUser) {
@@ -33,7 +30,6 @@ const Header = () => {
         parsedLoggedInUser = JSON.parse(storedLoggedInUser);
         setLoggedInUser(parsedLoggedInUser); // Atualiza o estado do usuário logado
       } catch (e) {
-        console.error('Header: Erro ao parsear loggedInUser do localStorage', e);
         setLoggedInUser(null); // Limpa o estado em caso de erro
         parsedLoggedInUser = null; // Limpa a variável temporária também
       }
@@ -60,7 +56,6 @@ const Header = () => {
           setProfilePicture(null);
         }
       } catch (e) {
-        console.error('Header: Erro ao parsear profilePictures do localStorage', e);
         setProfilePicture(null);
       }
     } else {
@@ -74,7 +69,6 @@ const Header = () => {
 
     // Handler do evento customizado 'profileUpdate'
     const handleProfileUpdate = () => {
-      console.log('Header: Evento "profileUpdate" recebido! Recarregando dados...');
       loadProfileData(); // Rerecarrega os dados do localStorage quando o evento é disparado
     };
 
@@ -93,7 +87,6 @@ const Header = () => {
       // Call API to invalidate session on server
       await authService.signOut();
     } catch (error) {
-      console.warn('Logout API call failed:', error);
       // Continue with local logout even if API call fails
     }
     
@@ -103,7 +96,6 @@ const Header = () => {
     localStorage.removeItem('profilePictures'); // Clear profile pictures as well
     
     navigate('/'); // Redirect to login
-    console.log("Usuário deslogado. Dados de sessão limpos.");
   };
 
   // O ícone de usuário e de logout só aparecerão se houver um usuário logado
@@ -158,7 +150,6 @@ const Header = () => {
                 src={profilePicture || undefined} // Usa a imagem Base64 do perfil (se existir)
                 onError={(e) => {
                   // Handler de erro caso a imagem do perfil falhe ao carregar
-                  console.error("Erro ao carregar a imagem de perfil no Header:", e);
                   setProfilePicture(null); // Limpa o src para forçar a exibição da inicial ou do ícone
                 }}
               >

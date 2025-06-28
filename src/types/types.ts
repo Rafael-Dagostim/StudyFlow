@@ -5,7 +5,6 @@ export interface RegisterFormData {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
   password: string;
   confirmPassword: string;
 }
@@ -129,6 +128,7 @@ export interface ISignInRequest {
 export interface ISignInResponseData {
   accessToken: string;
   refreshToken: string;
+  professor: User;
 }
 
 // Data esperada na resposta do profile GET
@@ -263,27 +263,7 @@ export interface IUpdateConversationResponseData {
 }
 
 // Generated Files
-export interface GeneratedFile {
-  id: string;
-  fileName: string;
-  displayName: string;
-  fileType: 'study-guide' | 'quiz' | 'summary' | 'lesson-plan' | 'custom';
-  format: 'pdf' | 'markdown' | 'docx';
-  currentVersion: number;
-  createdAt: string;
-  updatedAt: string;
-  versions: FileVersion[];
-}
 
-export interface FileVersion {
-  version: number;
-  createdAt: string;
-  sizeBytes: number;
-  pageCount?: number;
-  editPrompt?: string;
-  hasContent: boolean;
-  generationTime?: number;
-}
 
 export interface FileType {
   id: string;
@@ -292,22 +272,6 @@ export interface FileType {
   formats: string[];
 }
 
-export interface CreateFileRequest {
-  prompt: string;
-  displayName: string;
-  fileType: string;
-  format: string;
-  options?: {
-    language?: 'en' | 'pt';
-    difficulty?: 'basic' | 'intermediate' | 'advanced';
-    includeImages?: boolean;
-  };
-}
-
-export interface EditFileRequest {
-  editPrompt: string;
-  baseVersion?: number;
-}
 
 export interface GenerationStatus {
   fileId: string;

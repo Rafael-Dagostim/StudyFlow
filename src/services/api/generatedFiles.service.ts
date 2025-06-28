@@ -1,25 +1,48 @@
-import api from "./axiosConfig";
+import api from './axiosConfig';
 
 export interface GeneratedFile {
   id: string;
   fileName: string;
   displayName: string;
-  fileType: "study-guide" | "quiz" | "summary" | "lesson-plan" | "custom";
-  format: "pdf" | "markdown" | "docx";
+  fileType: string;
+  format: string;
   currentVersion: number;
   createdAt: string;
   updatedAt: string;
   versions: FileVersion[];
+  // Legacy fields for backward compatibility
+  name?: string;
+  type?: string;
+  path?: string;
+  content?: string;
+  htmlContent?: string;
+  projectId?: string;
+  generationStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  metadata?: {
+    prompt?: string;
+    language?: string;
+    difficulty?: string;
+    includeImages?: boolean;
+  };
 }
 
 export interface FileVersion {
+  id?: string;
   version: number;
   createdAt: string;
   sizeBytes: number;
-  pageCount?: number;
-  editPrompt?: string;
+  pageCount: number;
+  generationTime: number;
+  editPrompt?: string | null;
   hasContent: boolean;
-  generationTime?: number;
+  // Legacy fields for backward compatibility
+  content?: string;
+  htmlContent?: string;
+  isCurrent?: boolean;
+  metadata?: {
+    prompt?: string;
+    changes?: string;
+  };
 }
 
 export interface FileType {
@@ -32,296 +55,169 @@ export interface FileType {
 export interface CreateFileRequest {
   prompt: string;
   displayName: string;
-  fileType: string;
-  format: string;
+  fileType: 'study-guide' | 'quiz' | 'summary' | 'lesson-plan' | 'custom';
+  format: 'pdf' | 'markdown' | 'docx';
   options?: {
-    language?: "en" | "pt";
-    difficulty?: "basic" | "intermediate" | "advanced";
     includeImages?: boolean;
+    language?: 'en' | 'pt';
+    difficulty?: 'basic' | 'intermediate' | 'advanced';
+    customPrompt?: string;
   };
 }
 
 export interface EditFileRequest {
-  editPrompt: string;
-  baseVersion?: number;
-}
-
-export interface GenerationStatus {
   fileId: string;
-  version: number;
-  status: "processing" | "completed" | "failed";
-  generationTime?: number;
-  sizeBytes?: number;
-  pageCount?: number;
-  downloadUrl?: string;
-  error?: string;
+  changes: string;
+  versionId?: string;
 }
 
 export const generatedFilesService = {
   // Get available file types
   getFileTypes: (projectId: string) => {
-    console.log("[GeneratedFiles] Getting file types for project:", projectId);
     return api
       .get(`/projects/${projectId}/generated-files/types`)
       .then((response: any) => {
-        console.log("[GeneratedFiles] File types retrieved:", response.data);
         return response;
       })
       .catch((error: any) => {
-        console.error("[GeneratedFiles] Error getting file types:", error);
         throw error;
       });
   },
 
   // Create a new file
   createFile: (projectId: string, request: CreateFileRequest) => {
-    console.log(
-      "[GeneratedFiles] Creating file for project:",
-      projectId,
-      "with request:",
-      request
-    );
     return api
       .post(`/projects/${projectId}/generated-files`, request)
       .then((response: any) => {
-        console.log("[GeneratedFiles] File creation response:", response.data);
         return response;
       })
       .catch((error: any) => {
-        console.error("[GeneratedFiles] Error creating file:", error);
-        console.error("[GeneratedFiles] Request details:", {
-          projectId,
-          request,
-        });
         throw error;
       });
   },
 
-  // Edit an existing file (create new version)
-  editFile: (projectId: string, fileId: string, request: EditFileRequest) => {
-    console.log(
-      "[GeneratedFiles] Editing file:",
-      fileId,
-      "for project:",
-      projectId,
-      "with request:",
-      request
-    );
+  // Edit an existing file to create a new version
+  editFile: (projectId: string, request: EditFileRequest) => {
     return api
-      .post(
-        `/projects/${projectId}/generated-files/${fileId}/versions`,
-        request
-      )
+      .post(`/projects/${projectId}/generated-files/edit`, request)
       .then((response: any) => {
-        console.log("[GeneratedFiles] File edit response:", response.data);
         return response;
       })
       .catch((error: any) => {
-        console.error("[GeneratedFiles] Error editing file:", error);
-        console.error("[GeneratedFiles] Edit details:", {
-          projectId,
-          fileId,
-          request,
-        });
         throw error;
       });
   },
 
-  // List all files in a project
+  // List all files for a project
   listFiles: (projectId: string) => {
-    console.log("[GeneratedFiles] Listing files for project:", projectId);
     return api
       .get(`/projects/${projectId}/generated-files`)
       .then((response: any) => {
-        console.log("[GeneratedFiles] Files listed:", response.data);
         return response;
       })
       .catch((error: any) => {
-        console.error("[GeneratedFiles] Error listing files:", error);
         throw error;
       });
   },
 
-  // Get file details
+  // Get a specific file with all its versions
   getFileDetails: (projectId: string, fileId: string) => {
-    console.log(
-      "[GeneratedFiles] Getting details for file:",
-      fileId,
-      "in project:",
-      projectId
-    );
     return api
       .get(`/projects/${projectId}/generated-files/${fileId}`)
       .then((response: any) => {
-        console.log("[GeneratedFiles] File details:", response.data);
         return response;
       })
       .catch((error: any) => {
-        console.error("[GeneratedFiles] Error getting file details:", error);
         throw error;
       });
   },
 
-  // Check generation status
-  getGenerationStatus: (
-    projectId: string,
-    fileId: string,
-    version?: number
-  ) => {
-    const versionParam = version ? `?version=${version}` : "";
-    console.log(
-      "[GeneratedFiles] Getting generation status for file:",
-      fileId,
-      "version:",
-      version
-    );
+  // Get generation status for a file
+  getGenerationStatus: (projectId: string, fileId: string) => {
     return api
-      .get(
-        `/projects/${projectId}/generated-files/${fileId}/status${versionParam}`
-      )
+      .get(`/projects/${projectId}/generated-files/${fileId}/status`)
       .then((response: any) => {
-        console.log("[GeneratedFiles] Generation status:", response.data);
         return response;
       })
       .catch((error: any) => {
-        console.error(
-          "[GeneratedFiles] Error getting generation status:",
-          error
-        );
         throw error;
       });
   },
 
-  // Download file
-  downloadFile: async (
-    projectId: string,
-    fileId: string,
-    version?: number
-  ): Promise<Blob> => {
-    const versionParam = version ? `?version=${version}` : "";
-    console.log(
-      "[GeneratedFiles] Downloading file:",
-      fileId,
-      "version:",
-      version,
-      "for project:",
-      projectId
-    );
+  // Download a file version as blob for PDF generation
+  downloadFile: async (projectId: string, fileId: string, version?: number) => {
     try {
+      const versionParam = version !== undefined ? `?version=${version}` : '';
       const response = await api.get(
         `/projects/${projectId}/generated-files/${fileId}/download${versionParam}`,
-        {
-          responseType: "blob",
-        }
+        { responseType: 'blob' }
       );
-      console.log(
-        "[GeneratedFiles] Download successful, blob size:",
-        response.data.size
-      );
-      return response.data;
+      return response;
     } catch (error) {
-      console.error("[GeneratedFiles] Error downloading file:", error);
-      console.error("[GeneratedFiles] Download details:", {
-        projectId,
-        fileId,
-        version,
-      });
       throw error;
     }
   },
 
   // Get HTML content for PDF generation
-  getHTMLContent: async (
-    projectId: string,
-    fileId: string,
-    version?: number
-  ): Promise<string> => {
-    const versionParam = version ? `?version=${version}` : "";
-    console.log(
-      "[GeneratedFiles] Getting HTML content for file:",
-      fileId,
-      "version:",
-      version
-    );
+  getHTMLContent: async (projectId: string, fileId: string, version?: number) => {
     try {
+      const versionParam = version !== undefined ? `?version=${version}` : '';
       const response = await api.get(
-        `/projects/${projectId}/generated-files/${fileId}/html${versionParam}`,
-        {
-          responseType: "text",
-        }
+        `/projects/${projectId}/generated-files/${fileId}/html${versionParam}`
       );
-      console.log(
-        "[GeneratedFiles] HTML content retrieved, length:",
-        response.data.length
-      );
-      return response.data;
+      return response;
     } catch (error) {
-      console.error("[GeneratedFiles] Error getting HTML content:", error);
       throw error;
     }
   },
 
-  // Delete file
+  // Delete a file
   deleteFile: (projectId: string, fileId: string) => {
-    console.log(
-      "[GeneratedFiles] Deleting file:",
-      fileId,
-      "from project:",
-      projectId
-    );
     return api
       .delete(`/projects/${projectId}/generated-files/${fileId}`)
       .then((response: any) => {
-        console.log("[GeneratedFiles] File deleted successfully");
         return response;
       })
       .catch((error: any) => {
-        console.error("[GeneratedFiles] Error deleting file:", error);
         throw error;
       });
   },
 
-  // Poll for generation completion
+  // Poll for generation status with callback for progress updates
   pollGenerationStatus: async (
-    projectId: string,
-    fileId: string,
-    version?: number,
-    onProgress?: (status: GenerationStatus) => void
-  ): Promise<GenerationStatus> => {
-    console.log(
-      "[GeneratedFiles] Starting polling for file:",
-      fileId,
-      "version:",
-      version
-    );
-    const poll = async (): Promise<GenerationStatus> => {
-      const response = await generatedFilesService.getGenerationStatus(
-        projectId,
-        fileId,
-        version
-      );
-      const status = response.data.data;
-
-      console.log("[GeneratedFiles] Poll result:", status);
-
-      if (onProgress) {
-        onProgress(status);
+    projectId: string, 
+    fileId: string, 
+    onProgress?: (status: string) => void
+  ): Promise<GeneratedFile> => {
+    const maxAttempts = 30;
+    const pollInterval = 2000;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await api.get(`/projects/${projectId}/generated-files/${fileId}/status`);
+        const file: GeneratedFile = response.data;
+        
+        if (onProgress && file.generationStatus) {
+          onProgress(file.generationStatus);
+        }
+        
+        if (file.generationStatus === 'COMPLETED') {
+          return file;
+        }
+        
+        if (file.generationStatus === 'FAILED') {
+          throw new Error('Generation failed');
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      } catch (error) {
+        if (attempt === maxAttempts - 1) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
       }
-
-      if (status.status === "completed" || status.status === "failed") {
-        console.log(
-          "[GeneratedFiles] Polling completed with status:",
-          status.status
-        );
-        return status;
-      }
-
-      // Wait 2 seconds before next poll
-      console.log("[GeneratedFiles] Continuing polling, waiting 2 seconds...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      return poll();
-    };
-
-    return poll();
-  },
+    }
+    
+    throw new Error('Generation timeout');
+  }
 };

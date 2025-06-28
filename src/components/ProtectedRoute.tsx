@@ -29,7 +29,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         await authService.verifyToken();
         setIsAuthenticated(true);
       } catch (error) {
-        console.warn('Token validation failed:', error);
         // Clear invalid tokens
         TokenManager.clearTokens();
         localStorage.removeItem('loggedInUser');

@@ -71,19 +71,11 @@ api.interceptors.response.use(
     // Enhanced error logging
     if (error.code === 'ECONNRESET' || error.code === 'NETWORK_ERROR' || 
         error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
-      console.error('🚨 Network connection reset detected:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        code: error.code,
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
       
       // Retry logic for network errors (but not for auth requests)
       const originalRequest = error.config as any;
       if (originalRequest && !originalRequest._retry && !originalRequest.url?.includes('/auth/')) {
         originalRequest._retry = true;
-        console.log('🔄 Retrying request after network error...');
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
         return api(originalRequest);
       }

@@ -19,8 +19,8 @@ import {
   Switch,
   Divider
 } from '@mui/material';
-import { generatedFilesService } from '../services/api/generatedFiles.service';
-import type { FileType, CreateFileRequest, EditFileRequest, GeneratedFile, GenerationStatus } from '../types/types';
+import { generatedFilesService, CreateFileRequest, GeneratedFile, EditFileRequest } from '../services/api/generatedFiles.service';
+import type { FileType, GenerationStatus } from '../types/types';
 
 interface FileModalProps {
   open: boolean;
@@ -49,7 +49,7 @@ export const FileModal: React.FC<FileModalProps> = ({
   const [createFormData, setCreateFormData] = useState<CreateFileRequest>({
     prompt: '',
     displayName: '',
-    fileType: '',
+    fileType: 'custom' as const,
     format: 'pdf',
     options: {
       language: 'pt',
@@ -60,8 +60,9 @@ export const FileModal: React.FC<FileModalProps> = ({
 
   // Form data for edit mode
   const [editFormData, setEditFormData] = useState<EditFileRequest>({
-    editPrompt: '',
-    baseVersion: 1
+    fileId: '',
+    changes: '',
+    versionId: undefined
   });
 
   // Load file types when modal opens
@@ -85,9 +86,12 @@ export const FileModal: React.FC<FileModalProps> = ({
   // Initialize edit form data
   useEffect(() => {
     if (open && mode === 'edit' && file) {
+      const currentVersionObj = file.versions.find(v => v.isCurrent) || 
+                               file.versions[file.versions.length - 1];
       setEditFormData({
-        editPrompt: '',
-        baseVersion: file.currentVersion
+        fileId: file.id,
+        changes: '',
+        versionId: currentVersionObj?.id
       });
     }
   }, [open, mode, file]);
@@ -98,7 +102,7 @@ export const FileModal: React.FC<FileModalProps> = ({
       setCreateFormData({
         prompt: '',
         displayName: '',
-        fileType: '',
+        fileType: 'custom' as const,
         format: 'pdf',
         options: {
           language: 'pt',
@@ -107,8 +111,9 @@ export const FileModal: React.FC<FileModalProps> = ({
         }
       });
       setEditFormData({
-        editPrompt: '',
-        baseVersion: 1
+        fileId: '',
+        changes: '',
+        versionId: undefined
       });
       setError(null);
       setGenerationStatus(null);
@@ -118,8 +123,27 @@ export const FileModal: React.FC<FileModalProps> = ({
   const selectedFileType = fileTypes.find(ft => ft.id === createFormData.fileType);
 
   const handleCreateSubmit = async () => {
-    if (!createFormData.prompt.trim() || !createFormData.displayName.trim() || !createFormData.fileType) {
-      setError('Por favor, preencha todos os campos obrigatórios');
+    // Validate required fields
+    if (!createFormData.prompt.trim()) {
+      setError('Por favor, preencha o prompt de geração');
+      return;
+    }
+    if (!createFormData.displayName.trim()) {
+      setError('Por favor, preencha o nome do arquivo');
+      return;
+    }
+    if (!createFormData.fileType) {
+      setError('Por favor, selecione o tipo de arquivo');
+      return;
+    }
+    // Validate prompt length (10-2000 characters)
+    if (createFormData.prompt.length < 10 || createFormData.prompt.length > 2000) {
+      setError('O prompt deve ter entre 10 e 2000 caracteres');
+      return;
+    }
+    // Validate display name length (1-100 characters)
+    if (createFormData.displayName.length < 1 || createFormData.displayName.length > 100) {
+      setError('O nome do arquivo deve ter entre 1 e 100 caracteres');
       return;
     }
 
@@ -151,7 +175,7 @@ export const FileModal: React.FC<FileModalProps> = ({
   };
 
   const handleEditSubmit = async () => {
-    if (!editFormData.editPrompt.trim() || !file) {
+    if (!editFormData.changes.trim() || !file) {
       setError('Por favor, descreva as alterações desejadas');
       return;
     }
@@ -160,7 +184,7 @@ export const FileModal: React.FC<FileModalProps> = ({
     setError(null);
 
     try {
-      const response = await generatedFilesService.editFile(projectId, file.id, editFormData);
+      const response = await generatedFilesService.editFile(projectId, editFormData);
       const { version } = response.data.data;
 
       // File edit initiated successfully
@@ -254,7 +278,7 @@ export const FileModal: React.FC<FileModalProps> = ({
                     label="Tipo de Arquivo"
                     onChange={(e) => setCreateFormData(prev => ({ 
                       ...prev, 
-                      fileType: e.target.value,
+                      fileType: e.target.value as CreateFileRequest['fileType'],
                       format: 'pdf' // Reset format when type changes
                     }))}
                     disabled={loading}
@@ -278,6 +302,7 @@ export const FileModal: React.FC<FileModalProps> = ({
                   label="Nome do Arquivo"
                   value={createFormData.displayName}
                   onChange={(e) => setCreateFormData(prev => ({ ...prev, displayName: e.target.value }))}
+                  helperText={`${createFormData.displayName.length}/100 caracteres`}
                   sx={{ mb: 2 }}
                   disabled={loading}
                 />
@@ -308,6 +333,7 @@ export const FileModal: React.FC<FileModalProps> = ({
                   value={createFormData.prompt}
                   onChange={(e) => setCreateFormData(prev => ({ ...prev, prompt: e.target.value }))}
                   placeholder="Descreva o que você quer gerar..."
+                  helperText={`${createFormData.prompt.length}/2000 caracteres (mínimo 10)`}
                   sx={{ mb: 2 }}
                   disabled={loading}
                 />
@@ -328,7 +354,7 @@ export const FileModal: React.FC<FileModalProps> = ({
                       disabled={loading}
                     >
                       <MenuItem value="pt">Português</MenuItem>
-                      <MenuItem value="en">English</MenuItem>
+                      <MenuItem value="en">Inglês</MenuItem>
                     </Select>
                   </FormControl>
 
@@ -371,24 +397,23 @@ export const FileModal: React.FC<FileModalProps> = ({
         {mode === 'edit' && file && (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              <strong>Arquivo:</strong> {file.displayName}
+              <strong>Arquivo:</strong> {file.name}
             </Typography>
             
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Versão Base</InputLabel>
               <Select
-                value={editFormData.baseVersion}
+                value={editFormData.versionId || ''}
                 label="Versão Base"
-                onChange={(e) => setEditFormData(prev => ({ ...prev, baseVersion: Number(e.target.value) }))}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, versionId: e.target.value }))}
                 disabled={loading}
               >
                 {file.versions
-                  .filter(v => v.hasContent)
                   .sort((a, b) => b.version - a.version)
                   .map(version => (
-                    <MenuItem key={version.version} value={version.version}>
+                    <MenuItem key={version.id} value={version.id}>
                       v{version.version}
-                      {version.version === file.currentVersion && ' (atual)'}
+                      {version.isCurrent && ' (atual)'}
                     </MenuItem>
                   ))}
               </Select>
@@ -399,8 +424,8 @@ export const FileModal: React.FC<FileModalProps> = ({
               multiline
               rows={4}
               label="O que você quer alterar?"
-              value={editFormData.editPrompt}
-              onChange={(e) => setEditFormData(prev => ({ ...prev, editPrompt: e.target.value }))}
+              value={editFormData.changes}
+              onChange={(e) => setEditFormData(prev => ({ ...prev, changes: e.target.value }))}
               placeholder="Ex: Adicionar mais exemplos, tornar mais simples, incluir exercícios práticos..."
               disabled={loading}
             />
@@ -417,8 +442,16 @@ export const FileModal: React.FC<FileModalProps> = ({
           variant="contained"
           disabled={
             loading ||
-            (mode === 'create' && (!createFormData.prompt.trim() || !createFormData.displayName.trim() || !createFormData.fileType)) ||
-            (mode === 'edit' && !editFormData.editPrompt.trim())
+            (mode === 'create' && (
+              !createFormData.prompt.trim() || 
+              !createFormData.displayName.trim() || 
+              !createFormData.fileType ||
+              createFormData.prompt.length < 10 ||
+              createFormData.prompt.length > 2000 ||
+              createFormData.displayName.length < 1 ||
+              createFormData.displayName.length > 100
+            )) ||
+            (mode === 'edit' && !editFormData.changes.trim())
           }
           startIcon={loading ? <CircularProgress size={20} /> : null}
         >

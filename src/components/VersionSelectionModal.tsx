@@ -14,7 +14,7 @@ import {
   Box,
   Divider
 } from '@mui/material';
-import type { GeneratedFile } from '../types/types';
+import type { GeneratedFile } from '../services/api/generatedFiles.service';
 
 interface VersionSelectionModalProps {
   open: boolean;
@@ -98,27 +98,17 @@ export const VersionSelectionModal: React.FC<VersionSelectionModalProps> = ({
                         
                         <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
                           <Typography variant="caption" color="text.secondary">
-                            Tamanho: {formatFileSize(version.sizeBytes)}
+                            Tamanho: N/A
                           </Typography>
-                          {version.pageCount && (
-                            <Typography variant="caption" color="text.secondary">
-                              Páginas: {version.pageCount}
-                            </Typography>
-                          )}
-                          {version.generationTime && (
-                            <Typography variant="caption" color="text.secondary">
-                              Geração: {version.generationTime}s
-                            </Typography>
-                          )}
                         </Box>
 
-                        {version.editPrompt && (
+                        {version.metadata?.changes && (
                           <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
                               Alterações:
                             </Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                              {version.editPrompt}
+                              {version.metadata?.changes}
                             </Typography>
                           </Box>
                         )}
