@@ -1,9 +1,9 @@
 // src/pages/Login.tsx
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { authService } from '../services/api/auth.service';
-import { TokenManager } from '../services/api/axiosConfig';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { authService } from "../services/api/auth.service";
+import { TokenManager } from "../services/api/axiosConfig";
 import {
   Box,
   Button,
@@ -12,23 +12,23 @@ import {
   Divider,
   Paper,
   CircularProgress,
-  Alert
-} from '@mui/material';
-import { styled } from '@mui/material/styles';
+  Alert,
+} from "@mui/material";
+import { styled } from "@mui/material/styles";
 
 // --- Imports de Imagens ---
-import backgroundImage from '../assets/background_login.png';
-import logoImage from '../assets/logo2.png';
+import backgroundImage from "../assets/background_login.png";
+import logoImage from "../assets/logo2.png";
 // --- Fim dos imports de imagens ---
 
 // --- Styled Components ---
 const LoginContainer = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(4),
-  width: '400px',
-  height: '100vh', // Ocupa a altura total da viewport
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center', // Centraliza o conteúdo verticalmente
+  width: "400px",
+  height: "100vh", // Ocupa a altura total da viewport
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center", // Centraliza o conteúdo verticalmente
   boxShadow: theme.shadows[3],
   borderRadius: 0, // Sem bordas arredondadas para ocupar a lateral
 }));
@@ -36,15 +36,15 @@ const LoginContainer = styled(Paper)(({ theme }) => ({
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const LogoText = styled(Typography)(({ theme }) => ({
   fontWeight: 700,
-  fontSize: '2rem',
+  fontSize: "2rem",
   marginBottom: theme.spacing(4),
   color: theme.palette.primary.main,
-  textAlign: 'center',
+  textAlign: "center",
 }));
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   marginBottom: theme.spacing(2),
-  '& .MuiOutlinedInput-root': {
+  "& .MuiOutlinedInput-root": {
     borderRadius: theme.shape.borderRadius,
   },
 }));
@@ -58,7 +58,7 @@ const LoginButton = styled(Button)(({ theme }) => ({
 
 const DividerWithText = styled(Divider)(({ theme }) => ({
   margin: theme.spacing(3, 0),
-  '&::before, &::after': {
+  "&::before, &::after": {
     borderColor: theme.palette.divider,
   },
 }));
@@ -67,17 +67,16 @@ const DividerWithText = styled(Divider)(({ theme }) => ({
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
 
   const [emailError, setEmailError] = useState(false);
-  const [emailHelperText, setEmailHelperText] = useState('');
+  const [emailHelperText, setEmailHelperText] = useState("");
   const [passwordError, setPasswordError] = useState(false);
-  const [passwordHelperText, setPasswordHelperText] = useState('');
+  const [passwordHelperText, setPasswordHelperText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [generalError, setGeneralError] = useState('');
-
+  const [generalError, setGeneralError] = useState("");
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -89,75 +88,75 @@ export const Login: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     // Limpa erros ao digitar
-    if (name === 'email') {
+    if (name === "email") {
       setEmailError(false);
-      setEmailHelperText('');
+      setEmailHelperText("");
     }
-    if (name === 'password') {
+    if (name === "password") {
       setPasswordError(false);
-      setPasswordHelperText('');
+      setPasswordHelperText("");
     }
-    
+
     // Limpa erro geral
-    setGeneralError('');
+    setGeneralError("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Reset errors
     setEmailError(false);
-    setEmailHelperText('');
+    setEmailHelperText("");
     setPasswordError(false);
-    setPasswordHelperText('');
-    setGeneralError('');
+    setPasswordHelperText("");
+    setGeneralError("");
 
     const isEmailValid = validateEmail(formData.email);
     if (!isEmailValid) {
       setEmailError(true);
-      setEmailHelperText('Por favor, insira um e-mail válido.');
+      setEmailHelperText("Por favor, insira um e-mail válido.");
       return;
     }
 
     if (!formData.password.trim()) {
       setPasswordError(true);
-      setPasswordHelperText('Senha é obrigatória.');
+      setPasswordHelperText("Senha é obrigatória.");
       return;
     }
 
     setIsLoading(true);
 
     try {
+      debugger;
       // Call API for authentication
       const response = await authService.signIn({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
 
       const { accessToken, refreshToken, professor } = response.data;
-      
+
       // Store tokens securely
       TokenManager.setAccessToken(accessToken);
       TokenManager.setRefreshToken(refreshToken);
-      
+
       // User data is already included in login response
       const user = professor;
-      
+
       // Store user data for UI purposes (but auth relies on tokens)
-      localStorage.setItem('loggedInUser', JSON.stringify(user));
-      
-      navigate('/home');
+      localStorage.setItem("loggedInUser", JSON.stringify(user));
+
+      navigate("/home");
     } catch (error: any) {
-      
       if (error.response?.status === 401) {
         setEmailError(true);
         setPasswordError(true);
-        setEmailHelperText('E-mail ou senha incorretos.');
-        setPasswordHelperText('E-mail ou senha incorretos.');
+        setEmailHelperText("E-mail ou senha incorretos.");
+        setPasswordHelperText("E-mail ou senha incorretos.");
       } else if (error.response?.status === 400) {
-        setGeneralError(error.response.data.message || 'Dados inválidos.');
+        setGeneralError(error.response.data.message || "Dados inválidos.");
       } else {
-        setGeneralError('Erro de conexão. Tente novamente.');
+        setGeneralError("Erro de conexão. Tente novamente.");
       }
     } finally {
       setIsLoading(false);
@@ -165,28 +164,40 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <Box sx={{
-      display: 'flex',
-      height: '100vh', // Garante que a box principal ocupe toda a altura da viewport
-    }}>
+    <Box
+      sx={{
+        display: "flex",
+        height: "100vh", // Garante que a box principal ocupe toda a altura da viewport
+      }}
+    >
       {/* Box para a imagem de fundo (lado esquerdo) */}
-      <Box sx={{
-        flex: 1, // Ocupa o espaço restante
-        backgroundImage: `url(${backgroundImage})`, // Usa a imagem importada
-        backgroundSize: 'cover', // Garante que a imagem cubra toda a área
-        backgroundPosition: 'center', // Centraliza a imagem
-        backgroundRepeat: 'no-repeat', // Impede a repetição da imagem
-      }} />
+      <Box
+        sx={{
+          flex: 1, // Ocupa o espaço restante
+          backgroundImage: `url(${backgroundImage})`, // Usa a imagem importada
+          backgroundSize: "cover", // Garante que a imagem cubra toda a área
+          backgroundPosition: "center", // Centraliza a imagem
+          backgroundRepeat: "no-repeat", // Impede a repetição da imagem
+        }}
+      />
 
       {/* Box que contém o formulário de login (lado direito) */}
-      <Box sx={{
-        width: '400px', // Largura fixa para o formulário
-        flexShrink: 0, // Não permite que esta box encolha
-      }}>
+      <Box
+        sx={{
+          width: "400px", // Largura fixa para o formulário
+          flexShrink: 0, // Não permite que esta box encolha
+        }}
+      >
         <form onSubmit={handleSubmit}>
           <LoginContainer>
             {/* --- Box para a logo --- */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: 2,
+              }}
+            >
               <img src={logoImage} alt="Logo StudyFlow" height="300" />
             </Box>
 
@@ -231,9 +242,13 @@ export const Login: React.FC = () => {
               color="primary"
               size="large"
               disabled={isLoading}
-              startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
+              startIcon={
+                isLoading ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : null
+              }
             >
-              {isLoading ? 'Entrando...' : 'Entrar'}
+              {isLoading ? "Entrando..." : "Entrar"}
             </LoginButton>
 
             <DividerWithText>ou</DividerWithText>
@@ -244,10 +259,10 @@ export const Login: React.FC = () => {
               color="primary"
               size="large"
               sx={{
-                borderRadius: '4px',
+                borderRadius: "4px",
                 fontWeight: 600,
               }}
-              onClick={() => navigate('/register')}
+              onClick={() => navigate("/register")}
               disabled={isLoading}
             >
               Cadastre-se

@@ -109,9 +109,6 @@ api.interceptors.response.use(
       }
 
       isRefreshing = true;
-      const retryOriginalRequest = new Promise((resolve, reject) => {
-        failedRequestsQueue.push({ resolve, reject });
-      });
 
       try {
         const response = await refreshApi.post("/auth/refresh", {
