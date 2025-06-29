@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { WEBSOCKET_URL } from '../constants/api';
 
 export interface ChatMessage {
   id: string;
@@ -101,7 +102,7 @@ export class WebSocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Function[]> = new Map();
 
-  connect(baseUrl: string = 'http://localhost:3000'): Promise<Socket> {
+  connect(baseUrl: string = WEBSOCKET_URL): Promise<Socket> {
     return new Promise((resolve, reject) => {
       const token = localStorage.getItem('accessToken');
       

@@ -1,11 +1,10 @@
 import axios from 'axios';
 import { Project } from '../types';
-
-const API_BASE_URL = 'http://localhost:3000/api';
+import { API_BASE_URL } from '../constants/api';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL}/api`,
   timeout: 30000,
 });
 

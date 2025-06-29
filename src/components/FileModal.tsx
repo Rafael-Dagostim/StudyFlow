@@ -51,11 +51,6 @@ export const FileModal: React.FC<FileModalProps> = ({
     displayName: '',
     fileType: 'custom' as const,
     format: 'pdf',
-    options: {
-      language: 'pt',
-      difficulty: 'intermediate',
-      includeImages: false
-    }
   });
 
   // Form data for edit mode
@@ -104,11 +99,6 @@ export const FileModal: React.FC<FileModalProps> = ({
         displayName: '',
         fileType: 'custom' as const,
         format: 'pdf',
-        options: {
-          language: 'pt',
-          difficulty: 'intermediate',
-          includeImages: false
-        }
       });
       setEditFormData({
         fileId: '',
@@ -338,57 +328,7 @@ export const FileModal: React.FC<FileModalProps> = ({
                   disabled={loading}
                 />
 
-                <Divider sx={{ mb: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Opções Avançadas</Typography>
 
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                  <FormControl sx={{ minWidth: 120 }}>
-                    <InputLabel>Idioma</InputLabel>
-                    <Select
-                      value={createFormData.options?.language}
-                      label="Idioma"
-                      onChange={(e) => setCreateFormData(prev => ({
-                        ...prev,
-                        options: { ...prev.options, language: e.target.value as 'en' | 'pt' }
-                      }))}
-                      disabled={loading}
-                    >
-                      <MenuItem value="pt">Português</MenuItem>
-                      <MenuItem value="en">Inglês</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <FormControl sx={{ minWidth: 120 }}>
-                    <InputLabel>Dificuldade</InputLabel>
-                    <Select
-                      value={createFormData.options?.difficulty}
-                      label="Dificuldade"
-                      onChange={(e) => setCreateFormData(prev => ({
-                        ...prev,
-                        options: { ...prev.options, difficulty: e.target.value as any }
-                      }))}
-                      disabled={loading}
-                    >
-                      <MenuItem value="basic">Básico</MenuItem>
-                      <MenuItem value="intermediate">Intermediário</MenuItem>
-                      <MenuItem value="advanced">Avançado</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={createFormData.options?.includeImages || false}
-                      onChange={(e) => setCreateFormData(prev => ({
-                        ...prev,
-                        options: { ...prev.options, includeImages: e.target.checked }
-                      }))}
-                      disabled={loading}
-                    />
-                  }
-                  label="Incluir imagens"
-                />
               </>
             )}
           </>

@@ -223,7 +223,7 @@ export const EditProject: React.FC = () => {
         {/* --- Campo de Anexar Arquivo --- */}
         <Box sx={{ mt: 2, mb: 2 }}>
           <input
-            accept="image/*,.pdf,.doc,.docx"
+            accept="image/*,.pdf,.doc"
             style={{ display: 'none' }}
             id="raised-button-file-edit"
             multiple={false} // Para edição, geralmente se permite 1 arquivo por vez

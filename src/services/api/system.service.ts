@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../../constants/api';
 
 // System service for health checks
 // Note: These endpoints are not under /api prefix
 const systemApi = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: API_BASE_URL,
   timeout: 15000,
 });
 

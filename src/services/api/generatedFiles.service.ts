@@ -1,4 +1,4 @@
-import api from './axiosConfig';
+import api from "./axiosConfig";
 
 export interface GeneratedFile {
   id: string;
@@ -17,13 +17,7 @@ export interface GeneratedFile {
   content?: string;
   htmlContent?: string;
   projectId?: string;
-  generationStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  metadata?: {
-    prompt?: string;
-    language?: string;
-    difficulty?: string;
-    includeImages?: boolean;
-  };
+  generationStatus?: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 }
 
 export interface FileVersion {
@@ -55,14 +49,8 @@ export interface FileType {
 export interface CreateFileRequest {
   prompt: string;
   displayName: string;
-  fileType: 'study-guide' | 'quiz' | 'summary' | 'lesson-plan' | 'custom';
-  format: 'pdf' | 'markdown' | 'docx';
-  options?: {
-    includeImages?: boolean;
-    language?: 'en' | 'pt';
-    difficulty?: 'basic' | 'intermediate' | 'advanced';
-    customPrompt?: string;
-  };
+  fileType: "study-guide" | "quiz" | "summary" | "lesson-plan" | "custom";
+  format: "pdf" | "markdown";
 }
 
 export interface EditFileRequest {
@@ -147,10 +135,10 @@ export const generatedFilesService = {
   // Download a file version as blob for PDF generation
   downloadFile: async (projectId: string, fileId: string, version?: number) => {
     try {
-      const versionParam = version !== undefined ? `?version=${version}` : '';
+      const versionParam = version !== undefined ? `?version=${version}` : "";
       const response = await api.get(
         `/projects/${projectId}/generated-files/${fileId}/download${versionParam}`,
-        { responseType: 'blob' }
+        { responseType: "blob" }
       );
       return response;
     } catch (error) {
@@ -159,9 +147,13 @@ export const generatedFilesService = {
   },
 
   // Get HTML content for PDF generation
-  getHTMLContent: async (projectId: string, fileId: string, version?: number) => {
+  getHTMLContent: async (
+    projectId: string,
+    fileId: string,
+    version?: number
+  ) => {
     try {
-      const versionParam = version !== undefined ? `?version=${version}` : '';
+      const versionParam = version !== undefined ? `?version=${version}` : "";
       const response = await api.get(
         `/projects/${projectId}/generated-files/${fileId}/html${versionParam}`
       );
@@ -185,39 +177,41 @@ export const generatedFilesService = {
 
   // Poll for generation status with callback for progress updates
   pollGenerationStatus: async (
-    projectId: string, 
-    fileId: string, 
+    projectId: string,
+    fileId: string,
     onProgress?: (status: string) => void
   ): Promise<GeneratedFile> => {
     const maxAttempts = 30;
     const pollInterval = 2000;
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const response = await api.get(`/projects/${projectId}/generated-files/${fileId}/status`);
+        const response = await api.get(
+          `/projects/${projectId}/generated-files/${fileId}/status`
+        );
         const file: GeneratedFile = response.data;
-        
+
         if (onProgress && file.generationStatus) {
           onProgress(file.generationStatus);
         }
-        
-        if (file.generationStatus === 'COMPLETED') {
+
+        if (file.generationStatus === "COMPLETED") {
           return file;
         }
-        
-        if (file.generationStatus === 'FAILED') {
-          throw new Error('Generation failed');
+
+        if (file.generationStatus === "FAILED") {
+          throw new Error("Falha na geração");
         }
-        
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
       } catch (error) {
         if (attempt === maxAttempts - 1) {
           throw error;
         }
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
       }
     }
-    
-    throw new Error('Generation timeout');
-  }
+
+    throw new Error("Tempo limite da geração excedido");
+  },
 };

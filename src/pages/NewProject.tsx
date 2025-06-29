@@ -224,7 +224,7 @@ const NewProject: React.FC = () => {
 
         <Box sx={{ mt: 2, mb: 2 }}>
           <input
-            accept=".pdf,.doc,.docx,.txt,.md" // Tipos de arquivo aceitos pelo backend
+            accept=".pdf,.doc,.txt,.md" // Tipos de arquivo aceitos pelo backend
             style={{ display: "none" }} // Oculta o input original
             id="raised-button-file"
             multiple // Permite múltiplos arquivos
