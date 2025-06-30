@@ -79,7 +79,8 @@ const MessagesArea = styled(Paper)(({ theme }) => ({
   display: "flex",
   flexDirection: "column",
   minHeight: 0,
-  maxHeight: "100%",
+  maxHeight: `calc(100vh - 120px - ${FOOTER_HEIGHT} - 200px)`, // Fixed height with footer space
+  paddingBottom: FOOTER_HEIGHT, // Add padding to prevent content behind footer
 }));
 
 const MessageBubble = styled(Box)<{ owner: "USER" | "ASSISTANT" }>(
@@ -343,13 +344,16 @@ const WebSocketChatPage: React.FC = () => {
   const handleDownloadFile = async (file: GeneratedFile) => {
     // Check if there are multiple versions with content
     const versionsWithContent = file.versions.filter((v) => v.hasContent);
-    
+
     if (versionsWithContent.length > 1) {
       setSelectedFile(file);
       setVersionModalOpen(true);
     } else {
       // Download the current version or latest version with content
-      const targetVersion = file.currentVersion || versionsWithContent[versionsWithContent.length - 1]?.version || 1;
+      const targetVersion =
+        file.currentVersion ||
+        versionsWithContent[versionsWithContent.length - 1]?.version ||
+        1;
       await downloadFileVersion(file, targetVersion);
     }
   };
@@ -366,7 +370,7 @@ const WebSocketChatPage: React.FC = () => {
 
       // Check if response is a blob or has a data property
       const blob = response.data || response;
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.style.display = "none";
@@ -377,11 +381,17 @@ const WebSocketChatPage: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error: any) {
-      console.error('Download error:', error);
+      console.error("Download error:", error);
       if (error?.response?.status === 401) {
         alert("Sessão expirada. Faça login novamente.");
       } else {
-        alert(`Falha no download: ${error?.response?.data?.message || error.message || 'Erro desconhecido'}`);
+        alert(
+          `Falha no download: ${
+            error?.response?.data?.message ||
+            error.message ||
+            "Erro desconhecido"
+          }`
+        );
       }
     } finally {
       setDownloadingFile(null);
@@ -551,7 +561,8 @@ const WebSocketChatPage: React.FC = () => {
                   key={update.fileId}
                   fileId={update.fileId}
                   fileName={
-                    files.find((f) => f.id === update.fileId)?.displayName || "Arquivo"
+                    files.find((f) => f.id === update.fileId)?.displayName ||
+                    "Arquivo"
                   }
                   update={update}
                   onRetry={() => {
@@ -597,7 +608,8 @@ const WebSocketChatPage: React.FC = () => {
                             {file.displayName}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {getFileTypeLabel(file.fileType)} • v{file.currentVersion}
+                            {getFileTypeLabel(file.fileType)} • v
+                            {file.currentVersion}
                           </Typography>
                         </Box>
                       </Box>

@@ -12,8 +12,12 @@ import {
   Avatar,
   Paper,
   Divider,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { authService } from '../services/api/auth.service';
+import { TokenManager } from '../services/api/axiosConfig';
 
 // --- Styled Components ---
 const ProfileContainer = styled(Paper)(({ theme }) => ({
@@ -38,14 +42,10 @@ export const EditProfile: React.FC = () => {
     name: '', // Use name instead of firstName/lastName initially
     email: '', 
     password: '',
-    phone: '',
     firstName: '',
     lastName: ''
   });
 
-  const [passwordData, setPasswordData] = useState({
-    newPassword: '', confirmPassword: '',
-  });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const reader = new FileReader();
@@ -59,66 +59,109 @@ export const EditProfile: React.FC = () => {
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
 
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   // --- useEffect para carregar dados do usuário logado ---
   useEffect(() => {
-    const storedLoggedInUser = localStorage.getItem('loggedInUser');
-    const storedProfilePictures = localStorage.getItem('profilePictures'); // Nova chave para o mapa de fotos
+    const loadUserProfile = async () => {
+      setIsLoading(true);
+      setError(null);
 
-    let currentUser: User | null = null; // Mantenha esta declaração
-
-    if (storedLoggedInUser) {
       try {
-        // --- PONTO DE CORREÇÃO: Parseia e faz a asserção de tipo aqui ---
-        // A linha abaixo garante que 'parsedUser' é do tipo 'User'.
-        const parsedUser: User = JSON.parse(storedLoggedInUser); // <-- ESSA É A LINHA CHAVE DA CORREÇÃO
-        
-        currentUser = parsedUser; // Atribui à variável 'currentUser' para uso posterior no useEffect
-        setLoggedInUser(parsedUser); // Atualiza o estado 'loggedInUser'
+        // First check if we have tokens
+        const accessToken = TokenManager.getAccessToken();
+        if (!accessToken) {
+          navigate('/');
+          return;
+        }
 
-        // Agora, 'parsedUser' é definitivamente 'User', então não há erro de nulidade aqui
+        // Fetch profile from API
+        const response = await authService.getProfile();
+        const professor = response.data;
+
+        // Update local state with API data
+        setLoggedInUser(professor);
+        
+        // Parse name into firstName and lastName for the form
+        const nameParts = professor.name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
         setUserData({
-          id: parsedUser.id,
-          name: parsedUser.name,
-          firstName: parsedUser.firstName || '',
-          lastName: parsedUser.lastName || '',
-          email: parsedUser.email,
-          phone: parsedUser.phone || '', // phone pode ser opcional em User
-          password: parsedUser.password,
+          id: professor.id,
+          name: professor.name,
+          firstName: firstName,
+          lastName: lastName,
+          email: professor.email,
+          password: '', // Don't show password
         });
 
-      } catch (e) {
-        navigate('/'); // Redireciona se os dados estiverem corrompidos
-        return; // Sai do useEffect
-      }
-    } else {
-      navigate('/');
-      return; // Sai do useEffect
-    }
+        // Update localStorage with fresh data
+        localStorage.setItem('loggedInUser', JSON.stringify({
+          ...professor,
+          firstName,
+          lastName
+        }));
 
-    // --- Lógica para carregar a foto de perfil ---
-    // 'currentUser' aqui fora do try/catch principal ainda pode ser null,
-    // então a verificação 'if (currentUser && storedProfilePictures)' é crucial.
-    if (currentUser && storedProfilePictures) {
-      try {
-        const profilePicturesMap: { [userId: string]: string } = JSON.parse(storedProfilePictures);
-        const userPic = profilePicturesMap[currentUser.id]; // Acessa foto pelo ID
-        if (userPic) {
-          setProfilePicture(userPic);
-        } else {
-          setProfilePicture(null);
+        // Load profile picture from localStorage
+        const storedProfilePictures = localStorage.getItem('profilePictures');
+        if (storedProfilePictures) {
+          try {
+            const profilePicturesMap: { [userId: string]: string } = JSON.parse(storedProfilePictures);
+            const userPic = profilePicturesMap[professor.id];
+            if (userPic) {
+              setProfilePicture(userPic);
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
         }
-      } catch (e) {
-        setProfilePicture(null);
+      } catch (error: any) {
+        console.error('Error loading profile:', error);
+        if (error.response?.status === 401) {
+          // Token expired or invalid
+          TokenManager.clearTokens();
+          navigate('/');
+        } else {
+          setError('Erro ao carregar perfil. Tente novamente.');
+          // Fallback to localStorage if API fails
+          const storedLoggedInUser = localStorage.getItem('loggedInUser');
+          if (storedLoggedInUser) {
+            try {
+              const parsedUser: User = JSON.parse(storedLoggedInUser);
+              setLoggedInUser(parsedUser);
+              setUserData({
+                id: parsedUser.id,
+                name: parsedUser.name,
+                firstName: parsedUser.firstName || '',
+                lastName: parsedUser.lastName || '',
+                email: parsedUser.email,
+                password: '',
+              });
+            } catch (e) {
+              navigate('/');
+            }
+          } else {
+            navigate('/');
+          }
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } else {
-      setProfilePicture(null);
-    }
-  }, [navigate]); // navigate como dependência
+    };
+
+    loadUserProfile();
+  }, [navigate]);
 
   // --- Handlers de Mudança (mantidos do seu código) ---
   const handleUserDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    setError(null);
+    setSuccess(null);
+    
     if (name === 'fullName') {
       const [firstName, ...lastNameParts] = value.split(' ');
       setUserData(prev => ({
@@ -131,9 +174,6 @@ export const EditProfile: React.FC = () => {
     }
   };
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target; setPasswordData(prev => ({ ...prev, [name]: value }));
-  };
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -150,40 +190,48 @@ export const EditProfile: React.FC = () => {
   };
 
   // --- Handler de Submissão do Formulário (mantido do seu código) ---
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    setError(null);
+    setSuccess(null);
 
-    if (!loggedInUser) { alert("Você precisa estar logado para salvar seu perfil."); navigate('/'); return; }
-
-    if (passwordData.newPassword && passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("As novas senhas não coincidem."); return;
+    if (!loggedInUser) { 
+      setError("Você precisa estar logado para salvar seu perfil."); 
+      navigate('/'); 
+      return; 
     }
-    if (passwordData.newPassword && passwordData.newPassword.length < 6) {
-        alert("A nova senha deve ter no mínimo 6 caracteres."); return;
-    }
 
-    const storedUsers = localStorage.getItem('users');
-    let users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
 
-    // O 'loggedInUser' do estado já é o usuário atual que está logado.
-    // Usaremos ele como base para 'currentUserInLS' para tipagem clara.
-    const currentUserInLS = users.find(u => u.id === loggedInUser.id);
+    setIsSaving(true);
 
-    if (currentUserInLS) {
-      const updatedUser: User = {
-        ...currentUserInLS, // Preserva o ID original e outras propriedades
+    try {
+      // Prepare update data for API
+      const updateData: any = {
         name: `${userData.firstName} ${userData.lastName}`.trim(),
-        firstName: userData.firstName,
-        lastName: userData.lastName,
         email: userData.email,
-        phone: userData.phone || '',
-        password: passwordData.newPassword || currentUserInLS.password,
       };
 
-      users = users.map(user => user.id === updatedUser.id ? updatedUser : user);
-      localStorage.setItem('users', JSON.stringify(users));
+      // Call API to update profile
+      const response = await authService.updateProfile(updateData);
+      const updatedProfessor = response.data;
+
+      // Parse name back into firstName and lastName for consistency
+      const nameParts = updatedProfessor.name.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      // Update local state with response
+      const updatedUser: User = {
+        ...updatedProfessor,
+        firstName,
+        lastName,
+      };
+
+      setLoggedInUser(updatedUser);
       localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
 
+      // Update profile picture in localStorage
       const storedProfilePictures = localStorage.getItem('profilePictures');
       let profilePicturesMap: { [key: string]: string } = storedProfilePictures ? JSON.parse(storedProfilePictures) : {};
 
@@ -194,34 +242,73 @@ export const EditProfile: React.FC = () => {
       }
       localStorage.setItem('profilePictures', JSON.stringify(profilePicturesMap));
 
-    } else {
-      navigate('/');
-      return;
+      // Dispatch event to update Header
+      window.dispatchEvent(new CustomEvent('profileUpdate'));
+
+      setSuccess('Perfil atualizado com sucesso!');
+      
+      // Redirect after showing success message
+      setTimeout(() => {
+        navigate('/home');
+      }, 1500);
+
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      
+      if (error.response?.status === 400) {
+        const message = error.response.data.message;
+        if (message?.includes('email')) {
+          setError('Este e-mail já está em uso por outro usuário.');
+        } else {
+          setError(message || 'Dados inválidos.');
+        }
+      } else if (error.response?.status === 401) {
+        setError('Sessão expirada. Faça login novamente.');
+        setTimeout(() => {
+          TokenManager.clearTokens();
+          navigate('/');
+        }, 2000);
+      } else {
+        setError('Erro ao atualizar perfil. Tente novamente.');
+      }
+    } finally {
+      setIsSaving(false);
     }
-
-    window.dispatchEvent(new CustomEvent('profileUpdate'));
-
-    navigate('/home');
   };
 
   return (
     <Container maxWidth="md">
       <Box sx={{ my: 4, textAlign: 'center' }}>
         <Typography variant="h4" component="h1" gutterBottom>Meu Perfil</Typography>
-        <ProfileContainer>
-          <AvatarContainer>
-            <Box onClick={handleAvatarClick} sx={{ cursor: 'pointer' }}>
-              <Avatar
-                sx={{ width: 100, height: 100, fontSize: '2.5rem' }}
-                src={profilePicture || undefined} alt="Foto de perfil"
-              >
-                {/* Exibe a primeira letra do nome se não houver foto de perfil */}
-                {!profilePicture && userData.firstName ? userData.firstName.charAt(0).toUpperCase() : ''}
-              </Avatar>
-            </Box>
-            <input ref={fileInputRef} accept="image/*" style={{ display: 'none' }} id="profile-picture-upload" type="file" onChange={handleProfilePictureChange} />
-          </AvatarContainer>
-          <form onSubmit={handleSubmit}>
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <ProfileContainer>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                {success}
+              </Alert>
+            )}
+            <AvatarContainer>
+              <Box onClick={handleAvatarClick} sx={{ cursor: 'pointer' }}>
+                <Avatar
+                  sx={{ width: 100, height: 100, fontSize: '2.5rem' }}
+                  src={profilePicture || undefined} alt="Foto de perfil"
+                >
+                  {/* Exibe a primeira letra do nome se não houver foto de perfil */}
+                  {!profilePicture && userData.firstName ? userData.firstName.charAt(0).toUpperCase() : ''}
+                </Avatar>
+              </Box>
+              <input ref={fileInputRef} accept="image/*" style={{ display: 'none' }} id="profile-picture-upload" type="file" onChange={handleProfilePictureChange} />
+            </AvatarContainer>
+            <form onSubmit={handleSubmit}>
             <Typography variant="h6" gutterBottom>Informações Pessoais</Typography>
             <TextField
               fullWidth margin="normal" label="Nome Completo" name="fullName"
@@ -229,17 +316,26 @@ export const EditProfile: React.FC = () => {
               onChange={handleUserDataChange} required
             />
             <TextField fullWidth margin="normal" label="Email" name="email" type="email" value={userData.email} onChange={handleUserDataChange} required />
-            <TextField fullWidth margin="normal" label="Telefone" name="phone" value={userData.phone} onChange={handleUserDataChange} />
-            <Divider sx={{ my: 3 }} />
-            <Typography variant="h6" gutterBottom>Alterar Senha</Typography>
-            <TextField fullWidth margin="normal" label="Nova Senha" name="newPassword" type="password" value={passwordData.newPassword} onChange={handlePasswordChange} />
-            <TextField fullWidth margin="normal" label="Confirmar Senha" name="confirmPassword" type="password" value={passwordData.confirmPassword} onChange={handlePasswordChange} />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
-              <Button variant="outlined" onClick={() => navigate('/home')}>Cancelar</Button>
-              <Button type="submit" variant="contained">Salvar Alterações</Button>
+              <Button 
+                variant="outlined" 
+                onClick={() => navigate('/home')}
+                disabled={isSaving}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                variant="contained"
+                disabled={isSaving}
+                startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : null}
+              >
+                {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
             </Box>
           </form>
         </ProfileContainer>
+        )}
       </Box>
     </Container>
   );
