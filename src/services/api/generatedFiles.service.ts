@@ -54,9 +54,8 @@ export interface CreateFileRequest {
 }
 
 export interface EditFileRequest {
-  fileId: string;
-  changes: string;
-  versionId?: string;
+  editPrompt: string;
+  baseVersion?: number;
 }
 
 export const generatedFilesService = {
@@ -84,10 +83,17 @@ export const generatedFilesService = {
       });
   },
 
-  // Edit an existing file to create a new version
-  editFile: (projectId: string, request: EditFileRequest) => {
+  // Create new version (edit an existing file)
+  createVersion: (
+    projectId: string,
+    fileId: string,
+    request: EditFileRequest
+  ) => {
     return api
-      .post(`/projects/${projectId}/generated-files/edit`, request)
+      .post(
+        `/projects/${projectId}/generated-files/${fileId}/versions`,
+        request
+      )
       .then((response: any) => {
         return response;
       })

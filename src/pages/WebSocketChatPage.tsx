@@ -250,8 +250,12 @@ const WebSocketChatPage: React.FC = () => {
     setFilesLoading(true);
     try {
       const response = await generatedFilesService.listFiles(projectId);
-      setFiles(response.data.data.files);
+      // Extract files from nested response structure
+      const filesData = response.data?.data?.files || [];
+      setFiles(filesData);
     } catch (error) {
+      console.error("Error loading files:", error);
+      setFiles([]); // Reset to empty array on error
     } finally {
       setFilesLoading(false);
     }

@@ -58,9 +58,8 @@ export const FileModal: React.FC<FileModalProps> = ({
 
   // Form data for edit mode
   const [editFormData, setEditFormData] = useState<EditFileRequest>({
-    fileId: "",
-    changes: "",
-    versionId: undefined,
+    editPrompt: "",
+    baseVersion: undefined,
   });
 
   // Load file types when modal opens
@@ -70,9 +69,13 @@ export const FileModal: React.FC<FileModalProps> = ({
         setLoadingFileTypes(true);
         try {
           const response = await generatedFilesService.getFileTypes(projectId);
-          setFileTypes(response.data.data.fileTypes);
+          // Extract fileTypes from nested response structure
+          const typesData = response.data?.data?.fileTypes || [];
+          setFileTypes(typesData);
         } catch (err) {
+          console.error("Error loading file types:", err);
           setError("Erro ao carregar tipos de arquivo");
+          setFileTypes([]); // Set default empty array
         } finally {
           setLoadingFileTypes(false);
         }
@@ -84,13 +87,9 @@ export const FileModal: React.FC<FileModalProps> = ({
   // Initialize edit form data
   useEffect(() => {
     if (open && mode === "edit" && file) {
-      const currentVersionObj =
-        file.versions.find((v) => v.isCurrent) ||
-        file.versions[file.versions.length - 1];
       setEditFormData({
-        fileId: file.id,
-        changes: "",
-        versionId: currentVersionObj?.id,
+        editPrompt: "",
+        baseVersion: file.currentVersion,
       });
     }
   }, [open, mode, file]);
@@ -105,9 +104,8 @@ export const FileModal: React.FC<FileModalProps> = ({
         format: "pdf",
       });
       setEditFormData({
-        fileId: "",
-        changes: "",
-        versionId: undefined,
+        editPrompt: "",
+        baseVersion: undefined,
       });
       setError(null);
       setGenerationStatus(null);
@@ -157,20 +155,20 @@ export const FileModal: React.FC<FileModalProps> = ({
         projectId,
         createFormData
       );
-      const fileData = response.data.data;
+      const fileData = response.data?.data;
 
       // File creation initiated successfully
       // The actual generation happens in background with WebSocket updates
       setGenerationStatus({
-        fileId: fileData.id || fileData.fileId,
-        version: fileData.version || fileData.currentVersion || 1,
+        fileId: fileData.fileId,
+        version: fileData.version || 1,
         status: "processing" as const,
         generationTime: 0,
         sizeBytes: 0,
       });
 
       // Close modal immediately since generation is async
-      onSuccess(fileData.id || fileData.fileId);
+      onSuccess(fileData.fileId);
       onClose();
     } catch (err: any) {
       setError(err.response?.data?.message || "Erro ao criar arquivo");
@@ -180,8 +178,17 @@ export const FileModal: React.FC<FileModalProps> = ({
   };
 
   const handleEditSubmit = async () => {
-    if (!editFormData.changes.trim() || !file) {
+    if (!editFormData.editPrompt.trim() || !file) {
       setError("Por favor, descreva as alterações desejadas");
+      return;
+    }
+
+    // Validate edit prompt length (10-1000 characters)
+    if (
+      editFormData.editPrompt.length < 10 ||
+      editFormData.editPrompt.length > 1000
+    ) {
+      setError("O prompt de edição deve ter entre 10 e 1000 caracteres");
       return;
     }
 
@@ -189,11 +196,13 @@ export const FileModal: React.FC<FileModalProps> = ({
     setError(null);
 
     try {
-      const response = await generatedFilesService.editFile(
+      const response = await generatedFilesService.createVersion(
         projectId,
+        file.id,
         editFormData
       );
-      const { version } = response.data.data;
+      const versionData = response.data?.data;
+      const version = versionData?.version || (file.currentVersion + 1);
 
       // File edit initiated successfully
       // The actual generation happens in background with WebSocket updates
@@ -381,12 +390,12 @@ export const FileModal: React.FC<FileModalProps> = ({
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Versão Base</InputLabel>
               <Select
-                value={editFormData.versionId || ""}
+                value={editFormData.baseVersion || file.currentVersion || ""}
                 label="Versão Base"
                 onChange={(e) =>
                   setEditFormData((prev) => ({
                     ...prev,
-                    versionId: e.target.value,
+                    baseVersion: Number(e.target.value),
                   }))
                 }
                 disabled={loading}
@@ -394,9 +403,9 @@ export const FileModal: React.FC<FileModalProps> = ({
                 {file.versions
                   .sort((a, b) => b.version - a.version)
                   .map((version) => (
-                    <MenuItem key={version.id} value={version.id}>
+                    <MenuItem key={version.version} value={version.version}>
                       v{version.version}
-                      {version.isCurrent && " (atual)"}
+                      {version.version === file.currentVersion && " (atual)"}
                     </MenuItem>
                   ))}
               </Select>
@@ -407,14 +416,15 @@ export const FileModal: React.FC<FileModalProps> = ({
               multiline
               rows={4}
               label="O que você quer alterar?"
-              value={editFormData.changes}
+              value={editFormData.editPrompt}
               onChange={(e) =>
                 setEditFormData((prev) => ({
                   ...prev,
-                  changes: e.target.value,
+                  editPrompt: e.target.value,
                 }))
               }
               placeholder="Ex: Adicionar mais exemplos, tornar mais simples, incluir exercícios práticos..."
+              helperText={`${editFormData.editPrompt.length}/1000 caracteres (mínimo 10)`}
               disabled={loading}
             />
           </>
@@ -438,7 +448,9 @@ export const FileModal: React.FC<FileModalProps> = ({
                 createFormData.prompt.length > 2000 ||
                 createFormData.displayName.length < 1 ||
                 createFormData.displayName.length > 100)) ||
-            (mode === "edit" && !editFormData.changes.trim())
+            (mode === "edit" && (!editFormData.editPrompt.trim() ||
+              editFormData.editPrompt.length < 10 ||
+              editFormData.editPrompt.length > 1000))
           }
           startIcon={loading ? <CircularProgress size={20} /> : null}
         >
